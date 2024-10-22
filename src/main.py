@@ -77,6 +77,7 @@ async def main() -> None:
         logger.info(f"Berhasil memuat {len(groups)} grup")
 
         status_manager = StatusManager()
+        status_manager.clean_expired_slowmode()  # Bersihkan slowmode yang sudah berakhir saat startup
         error_handler = ErrorHandler(status_manager)
 
         client = TelegramSenderClient(

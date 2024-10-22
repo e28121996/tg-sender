@@ -65,7 +65,6 @@ class MessageSender:
                 logger.info(f"Menunggu {delay:.2f} detik sebelum batch berikutnya")
                 await asyncio.sleep(delay)
 
-        self.status_manager.save_status()
         self.status_manager.log_metrics()
         end_time = time.time()
         total_time = end_time - start_time

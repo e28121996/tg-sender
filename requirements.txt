@@ -6,3 +6,5 @@ black
 ruff
 mypy
 types-PyYAML
+redis
+types-redis

@@ -18,6 +18,7 @@ class Config:
             )
         self.telegram_password: str = os.environ.get("TELEGRAM_2FA_PASSWORD", "")
 
+        # Gunakan path relatif dan buat dapat dikonfigurasi melalui env vars
         self.groups_file: str = os.environ.get("GROUPS_FILE", "data/groups.txt")
         self.message_files: list[str] = os.environ.get(
             "MESSAGE_FILES",
@@ -67,6 +68,9 @@ class Config:
             "initial_delay": float(os.environ.get("ERROR_INITIAL_DELAY", "1.0")),
             "backoff_factor": float(os.environ.get("ERROR_BACKOFF_FACTOR", "2.0")),
         }
+
+        # Tambahkan ini di dalam __init__
+        self.redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
         self._load_yaml_config()
 
