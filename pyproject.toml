@@ -22,3 +22,7 @@ disallow_untyped_defs = true
 ignore_missing_imports = true
 explicit_package_bases = true
 namespace_packages = true
+
+[[tool.mypy.overrides]]
+module = "redis.*"
+ignore_missing_imports = true
