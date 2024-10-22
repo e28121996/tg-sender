@@ -1,0 +1,8 @@
+telethon
+pyyaml
+python-dotenv
+pre-commit
+black
+ruff
+mypy
+types-PyYAML

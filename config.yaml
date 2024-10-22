@@ -1,0 +1,47 @@
+telegram:
+  api_id: ${TELEGRAM_API_ID}
+  api_hash: ${TELEGRAM_API_HASH}
+  phone: ${TELEGRAM_PHONE}
+  session_name: "session"
+
+messaging:
+  batch_size: 4
+  intra_batch_delay:
+    min: 3
+    max: 5
+  inter_batch_delay:
+    min: 10
+    max: 20
+
+scheduling:
+  interval:
+    min: 1.1
+    max: 1.3
+
+error_handling:
+  max_attempts: 3
+  initial_delay: 1
+  backoff_factor: 2
+
+rate_limiting:
+  messages_per_minute: 20
+  max_rate: 30
+  min_rate: 10
+
+paths:
+  groups: "data/groups.txt"
+  messages: "data/messages/"
+  status: "data/status.json"
+
+logging:
+  level: "INFO"
+  file: "logs/bot.log"
+
+performance:
+  max_cpu_usage: 80
+  max_memory_usage: 70
+  check_interval: 60
+
+auto_restart:
+  enabled: true
+  max_runtime: 12 # hours

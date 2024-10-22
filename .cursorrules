@@ -1,0 +1,221 @@
+language python
+version 3.11
+
+style
+    indentation spaces
+    indentSize 4
+    maxLineLength 88
+    quoteStyle double
+    docstringStyle google
+
+naming
+    functions snake_case
+    variables snake_case
+    constants UPPER_CASE
+    classes PascalCase
+    modules snake_case
+
+imports
+    order
+        standard
+        third-party
+        local
+    grouping true
+    alphabetize true
+
+typing
+    required true
+    strictMode true
+
+docstrings
+    required true
+    style google
+
+errorHandling
+    useCustomExceptions true
+    logAllExceptions true
+
+asyncio
+    preferAsyncio true
+    avoidSyncInAsync true
+
+security
+    avoidHardcodedSecrets true
+    useEnvironmentVariables true
+
+performance
+    useListComprehension true
+    avoidGlobalVariables true
+
+testing
+    framework pytest
+    coverageThreshold 80
+
+linters
+    ruff
+    mypy
+
+formatters
+    black
+
+customRules
+    Gunakan f-string untuk pemformatan string
+    Utamakan komposisi daripada pewarisan
+    Gunakan anotasi tipe untuk semua parameter fungsi dan nilai kembali
+    Terapkan penanganan kesalahan dan logging yang tepat
+    Gunakan pemrograman asinkron untuk operasi I/O-bound
+    Ikuti prinsip hak akses minimal untuk keamanan
+    Terapkan pembatasan laju untuk panggilan API
+    Gunakan manajer konteks (pernyataan with) untuk manajemen sumber daya
+    Utamakan struktur data yang tidak dapat diubah jika memungkinkan
+    Gunakan nama variabel dan fungsi yang bermakna yang menggambarkan tujuannya
+    Ikuti aturan linting dari Ruff (E, F, I, N, W, B, C4, PT, RUF)
+    Gunakan Black untuk pemformatan kode otomatis
+    Terapkan pemeriksaan tipe statis dengan MyPy
+    Hindari penggunaan tipe Any kecuali benar-benar diperlukan
+    Gunakan explicit_package_bases dan namespace_packages sesuai konfigurasi MyPy
+    Gunakan type aliases untuk meningkatkan keterbacaan kode yang kompleks
+    Gunakan dataclasses atau NamedTuples untuk struktur data yang sederhana
+    Gunakan protokol (dari modul typing) untuk interface yang lebih fleksibel
+
+Fitur Utama:
+1. Penggunaan Akun:
+   - Menggunakan akun pengguna Telegram (bukan API bot)
+
+2. Sumber Grup:
+   - Mengirim pesan ke grup dari daftar di `data/groups.txt`
+   - Format: satu link grup per baris
+
+3. Sumber Pesan:
+   - Pengiriman pesan acak dari template di `data/messages/`
+
+4. Mekanisme Pengiriman:
+   - Pengiriman dalam batch 4 pesan
+   - Interval 3-5 detik antar pesan dalam satu batch
+   - Interval 10-20 detik antara batch ke grup berbeda
+
+5. Penjadwalan:
+   - Otomatis setiap 1,1-1,3 jam
+
+6. Metode Pengiriman:
+   - Operasi asinkron untuk pengiriman paralel
+
+7. Penanganan Status Grup:
+   - Blacklist: Grup dalam blacklist tidak akan menerima pesan
+   - Slowmode: Grup dalam slowmode tidak akan menerima pesan sampai masa slowmode berakhir
+
+8. Manajemen Status:
+   - Menggunakan file `data/status.json` untuk menyimpan informasi blacklist dan slowmode
+   - Pembaruan saat memulai: Memuat status dan membersihkan slowmode yang sudah berakhir
+   - Pembaruan setelah pengiriman: Memperbarui status dan membersihkan slowmode yang berakhir
+
+9. Konfigurasi:
+   - Menggunakan `config.yaml` untuk pengaturan umum
+   - Menggunakan `.env` untuk informasi sensitif
+
+10. Logging:
+    - Logging komprehensif untuk semua aktivitas dan kesalahan
+
+11. Caching:
+    - Menggunakan `data/status.json` sebagai caching persisten
+
+12. Optimalisasi:
+    - Pembacaan dan penyimpanan daftar grup yang efisien
+    - Penanganan status grup yang optimal
+
+13. Penanganan Kesalahan:
+    - Mekanisme retry dengan backoff untuk kesalahan sementara
+    - Blacklisting otomatis untuk kesalahan permanen
+
+14. Pemantauan Kinerja:
+    - Metrik untuk jumlah pesan terkirim, gagal, dan status grup
+
+15. Keamanan:
+    - Pembatasan laju global untuk menghindari pembatasan Telegram
+
+Alur Kerja Rinci:
+1. Inisialisasi:
+   - Baca konfigurasi dari `config.yaml` dan `.env`
+   - Baca dan simpan daftar grup dari `data/groups.txt` ke memori
+   - Muat status dari `data/status.json`:
+     - Bersihkan slowmode yang sudah berakhir
+     - Inisialisasi struktur data untuk blacklist dan slowmode
+   - Inisialisasi koneksi Telegram
+   - Inisialisasi sistem metrik dan logging
+   - Muat template pesan ke memori
+
+2. Penjadwalan:
+   - Hitung waktu pengiriman berikutnya (1,1-1,3 jam dari sekarang)
+   - Atur penjadwalan menggunakan mekanisme yang sesuai (misalnya: cron, scheduler)
+
+3. Pengiriman Pesan:
+   - Saat jadwal terpicu, mulai proses pengiriman
+   - Filter daftar grup:
+     - Hapus grup dalam blacklist
+     - Hapus grup dalam masa slowmode aktif
+   - Bagi grup yang tersisa ke dalam batch (4 grup per batch)
+   - Untuk setiap batch:
+     - Pilih pesan acak untuk setiap grup
+     - Kirim pesan ke setiap grup dengan interval 3-5 detik
+     - Terapkan pembatasan laju global
+     - Tunggu 10-20 detik sebelum batch berikutnya
+   - Catat metrik pengiriman (berhasil/gagal)
+
+4. Penanganan Kesalahan:
+   - Saat terjadi kesalahan, kategorikan:
+     - Kesalahan sementara: Timeout, Connection Error
+     - Kesalahan permanen: Group Not Found, User Banned, dll.
+   - Untuk kesalahan sementara:
+     - Terapkan mekanisme retry dengan backoff eksponensial
+     - Jika masih gagal setelah beberapa percobaan, pindahkan ke kategori permanen
+   - Untuk kesalahan permanen:
+     - Tambahkan grup ke blacklist
+     - Catat alasan dalam log
+   - Khusus untuk Slowmode:
+     - Catat durasi slowmode
+     - Tambahkan grup ke daftar slowmode dengan waktu berakhir
+
+5. Pembaruan Status:
+   - Setelah setiap sesi pengiriman, perbarui `data/status.json`:
+     - Perbarui daftar blacklist
+     - Perbarui daftar slowmode
+     - Bersihkan slowmode yang sudah berakhir
+   - Simpan perubahan ke file
+
+6. Logging dan Pemantauan:
+   - Catat semua aktivitas penting:
+     - Inisialisasi
+     - Pengiriman pesan (berhasil/gagal)
+     - Perubahan status grup
+     - Kesalahan dan penanganannya
+   - Perbarui metrik kinerja:
+     - Jumlah pesan terkirim
+     - Jumlah pesan gagal
+     - Jumlah grup dalam blacklist/slowmode
+
+7. Pengulangan:
+   - Setelah sesi pengiriman selesai, hitung waktu pengiriman berikutnya
+   - Atur penjadwalan baru
+   - Tunggu hingga jadwal berikutnya terpicu
+
+Penanganan Kesalahan Rinci:
+1. Kesalahan Sementara (dengan Retry):
+   - Timeout: Coba ulang dengan backoff, maksimal 3 kali
+   - Connection Error: Coba sambung ulang dengan backoff, maksimal 3 kali
+
+2. Kesalahan Permanen (Blacklist):
+   - Group Not Found: Catat dan tambahkan ke blacklist
+   - User Banned: Tambahkan ke blacklist dan catat alasan
+   - Invalid Chat ID: Tambahkan ke blacklist
+   - Link Not Valid/Expired: Catat dan tambahkan ke blacklist
+   - Group Not Available: Catat dan tambahkan ke blacklist
+   - Forbidden: Catat alasan dan tambahkan ke blacklist
+   - Chat Privacy: Catat dan tambahkan ke blacklist
+   - Invalid Permissions: Catat dan tambahkan ke blacklist
+   - Chat Not Found: Tambahkan ke blacklist dan catat
+
+3. Penanganan Khusus:
+   - Slowmode Enabled:
+     - Catat durasi slowmode
+     - Tambahkan grup ke status slowmode dengan waktu berakhir
+     - Lewati grup ini untuk sesi pengiriman saat ini

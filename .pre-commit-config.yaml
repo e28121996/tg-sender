@@ -1,0 +1,40 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.12.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-PyYAML]
+
+  - repo: local
+    hooks:
+      - id: check-docstrings
+        name: Check docstrings
+        entry: python -c 'import sys, ast; assert all(ast.get_docstring(ast.parse(open(f).read())) for f in sys.argv[1:]), "All modules should have docstrings"'
+        language: system
+        types: [python]
+
+      - id: check-f-strings
+        name: Check f-strings usage
+        entry: python -c 'import sys, ast; files = [f for f in sys.argv[1:] if f != "src/__init__.py" and not any(isinstance(node, ast.JoinedStr) for node in ast.walk(ast.parse(open(f).read())))]; print("Files without f-strings:", files); sys.exit(1 if files else 0)'
+        language: system
+        types: [python]
