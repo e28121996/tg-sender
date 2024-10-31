@@ -15,6 +15,3 @@ data/status.json
 
 # macOS
 .DS_Store
-
-# Pre-commit
-.pre-commit-config.yaml
