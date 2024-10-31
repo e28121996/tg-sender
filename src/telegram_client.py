@@ -1,78 +1,104 @@
 """Modul untuk menangani operasi klien Telegram."""
 
-import asyncio
-from typing import Any, Generator, Union
+from telethon import TelegramClient as BaseTelegramClient
+from telethon.errors import (
+    ChannelPrivateError,
+    ChatAdminRequiredError,
+    ChatGuestSendForbiddenError,
+    ChatRestrictedError,
+    ChatWriteForbiddenError,
+    MessageNotModifiedError,
+    MessageTooLongError,
+    PeerIdInvalidError,
+    SlowModeWaitError,
+    UserBannedInChannelError,
+    UsernameInvalidError,
+    UsernameNotOccupiedError,
+)
+from telethon.errors import (
+    FloodWaitError as TelethonFloodWaitError,
+)
 
-from telethon import TelegramClient
-from telethon.errors import AuthRestartError, FloodWaitError, SessionPasswordNeededError
-from telethon.tl.types import InputPeerChannel, InputPeerChat, InputPeerUser
-
-from .config import CONFIG
+from .exceptions import AuthError, FloodWaitError
 from .logger import setup_logger
+from .status_manager import StatusManager
 
-logger = setup_logger(__name__, CONFIG.logging["file"])
-
-EntityLike = Union[InputPeerUser, InputPeerChannel, InputPeerChat, str]
+logger = setup_logger(__name__)
 
 
-class TelegramSenderClient:
-    def __init__(self, api_id: int, api_hash: str, phone: str):
-        self.client: Any = TelegramClient("anon", api_id, api_hash)
-        self.phone = phone
-        logger.info("TelegramSenderClient diinisialisasi")
+class TelegramClient:
+    """Wrapper untuk klien Telegram."""
 
-    async def start(self, password: str) -> None:
-        logger.info(f"Mencoba memulai klien Telegram dengan nomor: {self.phone}")
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                await self.client.start(
-                    phone=self.phone, code_callback=self.code_callback
-                )
+    def __init__(
+        self,
+        client: BaseTelegramClient,
+        status_manager: StatusManager,
+    ) -> None:
+        """Inisialisasi TelegramClient."""
+        self.client = client
+        self.status = status_manager
 
-                if not await self.client.is_user_authorized():
-                    await self.client.sign_in(password=password)
-
-                logger.info("Klien Telegram berhasil dimulai.")
-                return
-            except AuthRestartError:
-                logger.warning(
-                    f"AuthRestartError terjadi. Percobaan {attempt + 1} dari {max_attempts}"
-                )
-                if attempt == max_attempts - 1:
-                    raise
-                await asyncio.sleep(5)  # Tunggu 5 detik sebelum mencoba lagi
-            except SessionPasswordNeededError:
-                await self.client.sign_in(password=password)
-                logger.info("Klien Telegram berhasil dimulai dengan 2FA.")
-                return
-            except Exception as e:
-                logger.error(f"Gagal memulai klien Telegram: {e}")
-                raise
+    async def start(self) -> None:
+        """Start client Telegram."""
+        try:
+            await self.client.start()
+            logger.info("✅ Client Telegram started")
+        except Exception as e:
+            logger.error("❌ Error start client: %s", str(e))
+            raise AuthError("Gagal start client") from e
 
     async def stop(self) -> None:
-        if self.client.is_connected():
-            await self.client.disconnect()
-        logger.info("Klien Telegram dihentikan")
-
-    async def send_message(self, group_link: str, message: str) -> None:
+        """Stop client Telegram."""
         try:
-            entity = await self.client.get_input_entity(group_link)
-            await self.client.send_message(entity, message)
-            logger.debug(f"Pesan berhasil dikirim ke {group_link}")  # Ubah ke debug
-        except FloodWaitError as e:
-            logger.warning(f"FloodWaitError: Harus menunggu {e.seconds} detik")
-            raise
+            await self.client.disconnect()
+            logger.info("✅ Client Telegram stopped")
         except Exception as e:
-            logger.error(f"Gagal mengirim pesan ke {group_link}: {e}")
-            raise
+            logger.error("❌ Error stop client: %s", str(e))
 
     async def is_user_authorized(self) -> bool:
-        return await self.client.is_user_authorized()
+        """Cek apakah user sudah terautentikasi."""
+        try:
+            result = await self.client.is_user_authorized()
+            return bool(result)
+        except Exception as e:
+            logger.error("❌ Error cek auth: %s", str(e))
+            return False
 
-    def __await__(self) -> Generator[Any, None, None]:
-        return self.start(CONFIG.telegram_password).__await__()
+    async def send_message(self, group: str, message: str) -> None:
+        """Send message with specified error handling."""
+        try:
+            await self.client.send_message(group, message)
+            logger.info("✅ Pesan terkirim ke %s", group)
 
-    @staticmethod
-    def code_callback() -> str:
-        return input("Silakan masukkan kode yang Anda terima: ")
+        except (
+            ChatWriteForbiddenError,
+            UserBannedInChannelError,
+            ChannelPrivateError,
+            ChatAdminRequiredError,
+            ChatRestrictedError,
+            ChatGuestSendForbiddenError,
+            PeerIdInvalidError,
+            MessageTooLongError,
+            MessageNotModifiedError,
+            UsernameInvalidError,
+            UsernameNotOccupiedError,
+            ValueError,
+        ) as e:
+            reason = str(e).split("(")[0].strip()
+            self.status.add_to_blacklist(group, reason)
+            return
+
+        except SlowModeWaitError as e:
+            duration = int(str(e).split()[3])
+            self.status.add_slowmode(group, duration)
+            return
+
+        except TelethonFloodWaitError as e:
+            self.status.add_flood_wait(e.seconds)
+            raise FloodWaitError(e.seconds) from e
+
+        except Exception as e:
+            if "CHAT_SEND_PLAIN_FORBIDDEN" in str(e):
+                self.status.add_to_blacklist(group, str(e))
+                return
+            raise

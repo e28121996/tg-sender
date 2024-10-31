@@ -1,94 +1,106 @@
-# Bot Pengiriman Pesan Telegram
-
-Bot ini dirancang untuk mengirim pesan ke grup Telegram secara otomatis dan terjadwal.
+# Telegram Message Sender
 
 ## Fitur Utama
 
-1. Penggunaan akun pengguna Telegram (bukan API bot)
-2. Mengirim pesan ke grup dari daftar di `data/groups.txt`
-3. Pengiriman pesan acak dari template di `data/messages/`
-4. Pengiriman dalam batch 4 pesan dengan interval 3-5 detik antar pesan
-5. Interval 10-20 detik antara batch ke grup berbeda
-6. Penjadwalan otomatis setiap 1,1-1,3 jam
-7. Operasi asinkron untuk pengiriman paralel
-8. Penanganan status grup (blacklist dan slowmode)
-9. Manajemen status menggunakan `data/status.json`
-10. Konfigurasi menggunakan `config.yaml` dan `.env`
-11. Logging komprehensif
-12. Caching menggunakan `data/status.json`
-13. Penanganan kesalahan dengan mekanisme retry dan blacklisting
-14. Pemantauan kinerja dengan metrik
-15. Pembatasan laju global untuk menghindari pembatasan Telegram
+### 1. Penggunaan Akun
+- Menggunakan akun pengguna Telegram (bukan API bot)
+- Session string dari environment variable
 
-## Struktur Proyek
+### 2. Penyimpanan Data
+- File status.json untuk menyimpan status dan data
+- Cache untuk status slowmode dan blacklist dalam file
 
-- `src/`: Kode sumber utama
-  - `__init__.py`: Inisialisasi modul
-  - `config.py`: Konfigurasi bot
-  - `error_handler.py`: Penanganan kesalahan
-  - `logger.py`: Konfigurasi logging
-  - `main.py`: Skrip utama
-  - `message_sender.py`: Logika pengiriman pesan
-  - `scheduler.py`: Penjadwalan tugas
-  - `status_manager.py`: Manajemen status grup
-  - `telegram_client.py`: Klien Telegram
-  - `utils.py`: Fungsi utilitas
-- `data/`: File data
-  - `groups.txt`: Daftar grup target
-  - `messages/`: Template pesan
-  - `status.json`: Status grup (blacklist dan slowmode)
-- `logs/`: File log
-- `config.yaml`: Konfigurasi umum
-- `.env`: Informasi sensitif (API credentials)
-- `.cursorrules`: Aturan gaya kode
+### 3. Mekanisme Pengiriman
+- Batch 4 pesan dengan interval 4±2 detik
+- Jeda 15±2 detik antar batch
+- Deteksi otomatis slowmode
+- Penanganan FloodWait error sesuai standar Telegram
 
-## Penggunaan
+### 4. Sistem Logging
+- Deteksi otomatis environment (Heroku/Local)
+- Heroku: Log ke stdout saja
+- Local: Log ke stdout saja
+- Format log disesuaikan dengan environment
 
-1. Pastikan Python 3.11 terinstal
-2. Install dependensi: `pip install -r requirements.txt`
-3. Sesuaikan konfigurasi di `config.yaml` dan `.env`
-4. Jalankan bot: `python src/main.py`
+## Alur Kerja Detail
 
-## Konfigurasi
+### 1. Inisialisasi
+- Load konfigurasi dari env vars termasuk session string
+- Setup logging berdasarkan environment (DYNO)
+- Load status.json
+- Setup session Telegram
+- Load daftar grup dan template
 
-Konfigurasi utama ada di `config.yaml`, termasuk:
-- Pengaturan Telegram API
-- Interval pengiriman pesan
-- Penjadwalan
-- Penanganan kesalahan
-- Pembatasan laju
-- Path file
+### 2. Pengecekan Grup
 
-Kredensial API disimpan di `.env`:
-- `TELEGRAM_API_ID`
-- `TELEGRAM_API_HASH`
-- `TELEGRAM_PHONE_NUMBER`
+#### a. Pre-send Validation
+- Cek status blacklist
+- Cek status slowmode
 
-## Alur Kerja
+#### b. Slowmode Detection
+- Catch SlowModeWaitError
+- Catat durasi slowmode di status.json
+- Skip grup untuk sementara
 
-1. Inisialisasi: Memuat konfigurasi, status, dan koneksi Telegram
-2. Penjadwalan: Mengatur waktu pengiriman berikutnya
-3. Pengiriman Pesan: Memfilter grup, mengirim dalam batch
-4. Penanganan Kesalahan: Retry untuk kesalahan sementara, blacklist untuk permanen
-5. Pembaruan Status: Memperbarui status grup setelah pengiriman
-6. Logging dan Pemantauan: Mencatat aktivitas dan metrik kinerja
+#### c. FloodWait Handling
+- Deteksi FloodWaitError
+- Implementasi exponential backoff (2^n seconds)
+- Maksimal retry 3x dengan interval meningkat
+- Pause global jika terlalu sering
 
-## Penanganan Kesalahan
+### 3. Penanganan Error
 
-- Retry dengan backoff untuk kesalahan sementara
-- Blacklisting otomatis untuk kesalahan permanen
-- Penanganan khusus untuk slowmode
+#### Auto Blacklist
+- ChatWriteForbiddenError: Tidak ada izin menulis
+- UserBannedInChannelError: User dibanned
+- ChannelPrivateError: Grup private
+- ChatAdminRequiredError: Butuh hak admin
+- UsernameInvalidError: Format invalid
+- UsernameNotOccupiedError: Username tidak ada
+- ValueError: Link tidak valid
+- ChatRestrictedError
+- ChatGuestSendForbiddenError
+- PeerIdInvalidError
+- MessageTooLongError
+- MessageNotModifiedError
 
-## Pemantauan
+### 4. Proses Pengiriman
 
-Log tersimpan di `logs/bot.log` dengan informasi rinci tentang aktivitas bot.
+#### a. Persiapan
+- Filter grup blacklist
+- Filter grup slowmode aktif
+- Bagi menjadi batch 4 grup
 
-## Keamanan
+#### b. Eksekusi per Batch
+- Pilih template secara acak dari daftar template yang tersedia
+- Kirim dengan delay 4±2 detik
+- Tunggu 15±2 detik untuk batch berikutnya
+- Handle FloodWait dengan backoff strategy
 
-- Gunakan akun Telegram yang dedicated untuk bot ini
-- Jangan bagikan kredensial API atau file `.env`
-- Perhatikan pembatasan laju untuk menghindari pemblokiran oleh Telegram
+#### c. Error Handling
+- Catat error ke log sesuai format environment
+- Update status grup di status.json
+- Lanjut ke grup berikutnya
 
-## Catatan
+### 5. Manajemen Status
 
-Proyek ini adalah untuk penggunaan pribadi. Pastikan untuk mematuhi Syarat Layanan Telegram saat menggunakannya.
+#### a. Blacklist
+- Simpan grup + alasan
+- Permanent storage di status.json
+- Skip saat pengiriman
+
+#### b. Slowmode
+- Catat durasi + waktu berakhir
+- Temporary storage di status.json
+- Auto cleanup expired entries
+
+### 6. Logging
+
+#### a. Konfigurasi Environment
+- Deteksi Heroku via DYNO env var
+- Format sederhana untuk Heroku
+- Format detail untuk local
+
+#### b. Output
+- Heroku: stdout only
+- Local: stdout only

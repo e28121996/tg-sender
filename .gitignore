@@ -1,93 +1,20 @@
-# Python cache files
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
 
-# Logs
-*.log
-
-# PID file
-*.pid
-
-# Environment variables
+# Environment
 .env
-
-# Virtual environment
 .venv/
-venv/
 
-# Cache directories
+# IDE
+.vscode/
 .mypy_cache/
-.pytest_cache/
 .ruff_cache/
 
-# Logs directory
-logs/
+# Data files
+data/status.json
 
-# Telethon session files
-*.session
-
-# VS Code settings
-.vscode/
-
-# Data files (kecuali template pesan dan daftar grup)
-data/*
-!data/messages/
-!data/groups.txt
-
-# Temporary files
-*.tmp
-
-# System files
+# macOS
 .DS_Store
-Thumbs.db
 
-# Python distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-
-# Pyre type checker
-.pyre/
+# Pre-commit
+.pre-commit-config.yaml
