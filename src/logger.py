@@ -1,18 +1,16 @@
 """Modul untuk setup logging."""
 
 import logging
-import os
 import sys
 from typing import Final
 
-# Format log sesuai environment
-HEROKU_FORMAT: Final = "%(message).100s"  # Batasi panjang pesan ke 100 karakter
-LOCAL_FORMAT: Final = "%(asctime)s - %(message).100s"  # Format detail dengan batasan
-DATE_FORMAT: Final = "%Y-%m-%d %H:%M:%S"
+# Format log dengan batasan panjang pesan untuk readability
+LOG_FORMAT: Final[str] = "%(asctime)s - %(message).100s"
+DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logger(name: str) -> logging.Logger:
-    """Setup logger berdasarkan environment."""
+    """Setup logger dengan format standar."""
     logger = logging.getLogger(name)
 
     if logger.handlers:
@@ -21,10 +19,8 @@ def setup_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)
-
-    is_heroku = bool(os.getenv("DYNO"))
     formatter = logging.Formatter(
-        fmt=HEROKU_FORMAT if is_heroku else LOCAL_FORMAT,
+        fmt=LOG_FORMAT,
         datefmt=DATE_FORMAT,
     )
 

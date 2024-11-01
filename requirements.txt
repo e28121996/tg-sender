@@ -1,3 +1,18 @@
 # Main dependencies
-telethon>=1.37.0
-python-dotenv>=1.0.1
+Telethon==1.37.0
+python-dotenv==1.0.1
+Flask==3.0.3
+
+# Flask dependencies
+Werkzeug==3.1.1
+Jinja2==3.1.4
+click==8.1.7
+itsdangerous==2.2.0
+blinker==1.8.2
+MarkupSafe==3.0.2
+
+# Telegram dependencies
+pyaes==1.6.1
+pyasn1==0.6.1
+rsa==4.9
+typing_extensions==4.12.2

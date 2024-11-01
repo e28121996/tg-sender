@@ -1,17 +1,38 @@
 # Python
 __pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment
-.env
+# Virtual Environment
 .venv/
 
 # IDE
+.idea/
 .vscode/
+*.swp
+*.swo
+
+# Code Quality
 .mypy_cache/
+.pytest_cache/
 .ruff_cache/
 
-# Data files
+# Project specific
 data/status.json
+*.session
+*.session-journal
+.env
 
-# macOS
+# Replit (hanya file temporary)
+.breakpoints
+.config/
+.upm/
+
+# OS specific
 .DS_Store
+Thumbs.db
+*.tmp
+*.log

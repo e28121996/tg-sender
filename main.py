@@ -2,14 +2,22 @@
 
 import asyncio
 import os
+import random
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Final
 
+from keep_alive import keep_alive
 from src.bot_runner import BotRunner
 from src.exceptions import AuthError, ConfigError, TelegramError
 from src.logger import setup_logger
 
 logger = setup_logger(name="telegram_sender")
+
+# Interval dalam detik (1.1-1.3 jam = 3960-4680 detik)
+MIN_INTERVAL: Final[int] = 3960  # 1.1 jam
+MAX_INTERVAL: Final[int] = 4680  # 1.3 jam
 
 
 def validate_environment() -> None:
@@ -41,34 +49,46 @@ def validate_environment() -> None:
         sys.exit(1)
 
 
-async def main() -> None:
-    """Entry point utama."""
+async def run_scheduled() -> None:
+    """Jalankan bot dengan penjadwalan."""
     validate_environment()
     bot = BotRunner()
 
-    try:
-        await bot.initialize()
-        await bot.run()
+    while True:
+        try:
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            logger.info("🕒 Mulai sesi pada %s", current_time)
 
-    except (AuthError, ConfigError) as e:
-        logger.error("❌ Error fatal: %s", str(e))
-        sys.exit(1)
+            await bot.initialize()
+            await bot.run()
+            await bot.cleanup()
 
-    except TelegramError as e:
-        logger.error("❌ Error Telegram: %s", str(e))
-        sys.exit(1)
+            # Random interval antara 1.1-1.3 jam
+            interval = random.uniform(MIN_INTERVAL, MAX_INTERVAL)
+            logger.info("⏳ Menunggu %.1f jam untuk sesi berikutnya", interval / 3600)
+            await asyncio.sleep(interval)
 
-    except Exception as e:
-        logger.exception("❌ Error tidak terduga: %s", str(e))
-        sys.exit(1)
+        except (AuthError, ConfigError) as e:
+            logger.error("❌ Error fatal: %s", str(e))
+            break
 
-    finally:
-        await bot.cleanup()
+        except TelegramError as e:
+            logger.error("❌ Error Telegram: %s", str(e))
+            # Tunggu 5 menit sebelum retry jika error
+            await asyncio.sleep(300)
+            continue
+
+        except Exception as e:
+            logger.exception("❌ Error tidak terduga: %s", str(e))
+            break
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # Start web server untuk keep-alive
+        keep_alive()
+        # Jalankan bot dengan penjadwalan
+        asyncio.run(run_scheduled())
     except KeyboardInterrupt:
         logger.info("👋 Bot dihentikan")
         sys.exit(0)

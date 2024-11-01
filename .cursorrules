@@ -1,98 +1,105 @@
-Fitur Utama:
-1. Penggunaan Akun:
-   - Menggunakan akun pengguna Telegram (bukan API bot)
-   - Session string dari environment variable
+# FITUR UTAMA
 
-2. Penyimpanan Data:
-   - File status.json untuk menyimpan status dan data
-   - Cache untuk status slowmode dan blacklist dalam file
+## 1. Penggunaan Akun
+* Menggunakan akun pengguna Telegram (bukan API bot)
+* Session string dari environment variable
 
-3. Mekanisme Pengiriman:
-   - Batch 4 pesan dengan interval 4±2 detik
-   - Jeda 15±2 detik antar batch
-   - Deteksi otomatis slowmode
-   - Penanganan FloodWait error sesuai standar Telegram
+## 2. Penyimpanan Data
+* File status.json untuk menyimpan status dan data
+* Cache untuk status slowmode dan blacklist dalam file
 
-4. Sistem Logging:
-   - Deteksi otomatis environment (Heroku/Local)
-   - Heroku: Log ke stdout saja
-   - Local: Log ke stdout saja
-   - Format log disesuaikan dengan environment
+## 3. Mekanisme Pengiriman
+* Batch 4 pesan dengan interval 4±2 detik
+* Jeda 15±2 detik antar batch
+* Deteksi otomatis slowmode
+* Penanganan FloodWait error sesuai standar Telegram
+
+## 4. Sistem Logging
+* Deteksi otomatis environment (Heroku/Local)
+* Heroku: Log ke stdout saja
+* Local: Log ke stdout saja
+* Format log disesuaikan dengan environment
 
 
-Alur Kerja Detail:
-1. Inisialisasi:
-   - Load konfigurasi dari env vars termasuk session string
-   - Setup logging berdasarkan environment (DYNO)
-   - Load status.json
-   - Setup session Telegram
-   - Load daftar grup dan template
+# ALUR KERJA DETAIL
 
-2. Pengecekan Grup:
-   a. Pre-send Validation:
-      - Cek status blacklist
-      - Cek status slowmode
-   
-   b. Slowmode Detection:
-      - Catch SlowModeWaitError
-      - Catat durasi slowmode di status.json
-      - Skip grup untuk sementara
-   
-   c. FloodWait Handling:
-      - Deteksi FloodWaitError
-      - Implementasi exponential backoff (2^n seconds)
-      - Maksimal retry 3x dengan interval meningkat
-      - Pause global jika terlalu sering
+## 1. Inisialisasi
+* Load konfigurasi dari env vars termasuk session string
+* Setup logging berdasarkan environment (DYNO)
+* Load status.json
+* Setup session Telegram
+* Load daftar grup dan template
 
-4. Penanganan Error:
-   a. (Auto Blacklist):
-      - ChatWriteForbiddenError: Tidak ada izin menulis
-      - UserBannedInChannelError: User dibanned
-      - ChannelPrivateError: Grup private
-      - ChatAdminRequiredError: Butuh hak admin
-      - UsernameInvalidError: Format invalid
-      - UsernameNotOccupiedError: Username tidak ada
-      - ValueError: Link tidak valid
-      - ChatRestrictedError
-      - ChatGuestSendForbiddenError
-      - PeerIdInvalidError
-      - MessageTooLongError
-      - MessageNotModifiedError
+## 2. Pengecekan Grup
 
-5. Proses Pengiriman:
-   a. Persiapan:
-      - Filter grup blacklist
-      - Filter grup slowmode aktif
-      - Bagi menjadi batch 4 grup
+### Pre-send Validation
+* Cek status blacklist
+* Cek status slowmode
 
-   b. Eksekusi per Batch:
-      - Pilih template secara acak dari daftar template yang tersedia
-      - Kirim dengan delay 4±2 detik
-      - Tunggu 15±2 detik untuk batch berikutnya
-      - Handle FloodWait dengan backoff strategy
-   
-   c. Error Handling:
-      - Catat error ke log sesuai format environment
-      - Update status grup di status.json
-      - Lanjut ke grup berikutnya
+### Slowmode Detection
+* Catch SlowModeWaitError
+* Catat durasi slowmode di status.json
+* Skip grup untuk sementara
 
-6. Manajemen Status:
-   a. Blacklist:
-      - Simpan grup + alasan
-      - Permanent storage di status.json
-      - Skip saat pengiriman
-   
-   b. Slowmode:
-      - Catat durasi + waktu berakhir
-      - Temporary storage di status.json
-      - Auto cleanup expired entries
+### FloodWait Handling
+* Deteksi FloodWaitError
+* Implementasi exponential backoff (2^n seconds)
+* Maksimal retry 3x dengan interval meningkat
+* Pause global jika terlalu sering
 
-7. Logging:
-   a. Konfigurasi Environment:
-      - Deteksi Heroku via DYNO env var
-      - Format sederhana untuk Heroku
-      - Format detail untuk local
-   
-   b. Output:
-      - Heroku: stdout only
-      - Local: stdout only
+## 3. Penanganan Error
+
+### Auto Blacklist
+* ChatWriteForbiddenError: Tidak ada izin menulis
+* UserBannedInChannelError: User dibanned
+* ChannelPrivateError: Grup private
+* ChatAdminRequiredError: Butuh hak admin
+* UsernameInvalidError: Format invalid
+* UsernameNotOccupiedError: Username tidak ada
+* ValueError: Link tidak valid
+* ChatRestrictedError
+* ChatGuestSendForbiddenError
+* PeerIdInvalidError
+* MessageTooLongError
+* MessageNotModifiedError
+
+## 4. Proses Pengiriman
+
+### Persiapan
+* Filter grup blacklist
+* Filter grup slowmode aktif
+* Bagi menjadi batch 4 grup
+
+### Eksekusi per Batch
+* Pilih template secara acak dari daftar template yang tersedia
+* Kirim dengan delay 4±2 detik
+* Tunggu 15±2 detik untuk batch berikutnya
+* Handle FloodWait dengan backoff strategy
+
+### Error Handling
+* Catat error ke log sesuai format environment
+* Update status grup di status.json
+* Lanjut ke grup berikutnya
+
+## 5. Manajemen Status
+
+### Blacklist
+* Simpan grup + alasan
+* Permanent storage di status.json
+* Skip saat pengiriman
+
+### Slowmode
+* Catat durasi + waktu berakhir
+* Temporary storage di status.json
+* Auto cleanup expired entries
+
+## 6. Logging
+
+### Konfigurasi Environment
+* Deteksi Heroku via DYNO env var
+* Format sederhana untuk Heroku
+* Format detail untuk local
+
+### Output
+* Heroku: stdout only
+* Local: stdout only
