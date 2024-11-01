@@ -1,9 +1,9 @@
 { pkgs }: {
   deps = [
-    pkgs.python311
-    pkgs.python311Packages.pip
-    pkgs.python311Packages.flask
-    pkgs.python311Packages.telethon
-    pkgs.python311Packages.python-dotenv
+    pkgs.python312
+    pkgs.python312Packages.pip
+    pkgs.python312Packages.flask
+    pkgs.python312Packages.telethon
+    pkgs.python312Packages.python-dotenv
   ];
-} 
+}
