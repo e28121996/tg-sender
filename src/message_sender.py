@@ -4,7 +4,7 @@ import asyncio
 import random
 from collections.abc import Sequence
 
-from .exceptions import FloodWaitError
+from .exceptions import FloodWaitError, SlowModeError
 from .logger import setup_logger
 from .status_manager import StatusManager
 from .telegram_client import TelegramClient
@@ -35,20 +35,23 @@ class MessageSender:
         ]
 
     async def _process_batch(
-        self, batch: Sequence[str], message: str
-    ) -> tuple[int, int]:
+        self, batch: Sequence[str], messages: list[str]
+    ) -> tuple[int, int, int]:
         """Proses satu batch pengiriman."""
         success = 0
         failed = 0
+        slowmode = 0
         retry = 0
 
         for group in batch:
             try:
                 if self.status.should_pause_globally():
                     logger.warning("⏳ Pause global karena terlalu banyak FloodWait")
-                    failed += len(batch) - (success + failed)
+                    failed += len(batch) - (success + failed + slowmode)
                     break
 
+                # Pilih pesan random untuk setiap grup
+                message = random.choice(messages)
                 await self.client.send_message(group, message)
                 success += 1
 
@@ -56,10 +59,14 @@ class MessageSender:
                     delay = random.uniform(*self.intra_delay)
                     await asyncio.sleep(delay)
 
+            except SlowModeError:
+                slowmode += 1
+                continue
+
             except FloodWaitError:
                 if retry >= 3:
                     logger.error("❌ Maksimal retry tercapai")
-                    failed += len(batch) - (success + failed)
+                    failed += len(batch) - (success + failed + slowmode)
                     break
 
                 delay = self.status.get_backoff_delay(retry)
@@ -73,7 +80,7 @@ class MessageSender:
                 logger.error("❌ %s: %s", group, str(e))
                 continue
 
-        return success, failed
+        return success, failed, slowmode
 
     async def send_messages_in_batches(self, groups: Sequence[str]) -> None:
         """Kirim pesan ke grup dalam batch."""
@@ -84,6 +91,7 @@ class MessageSender:
         batches = self._create_batches(list(groups))
         total_success = 0
         total_failed = 0
+        total_slowmode = 0
 
         logger.info(
             "📨 Mulai pengiriman ke %d grup (%d batch)",
@@ -93,12 +101,14 @@ class MessageSender:
 
         for i, batch in enumerate(batches, 1):
             try:
-                message = self.status.get_random_message()
+                # Ambil daftar pesan untuk batch ini
+                messages = [self.status.get_random_message() for _ in range(len(batch))]
                 logger.info("📨 Batch %d/%d (%d grup)", i, len(batches), len(batch))
 
-                success, failed = await self._process_batch(batch, message)
+                success, failed, slowmode = await self._process_batch(batch, messages)
                 total_success += success
                 total_failed += failed
+                total_slowmode += slowmode
 
                 if i < len(batches):
                     delay = random.uniform(*self.inter_delay)
@@ -113,6 +123,6 @@ class MessageSender:
             "✅ Selesai: %d sukses, %d gagal (slowmode: %d, blacklist: %d)",
             total_success,
             total_failed,
-            len(self.status._status["slowmode"]),
+            total_slowmode + len(self.status._status["slowmode"]),
             len(self.status._status["blacklist"]),
         )

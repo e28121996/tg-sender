@@ -57,8 +57,6 @@ class StatusManager:
     def __init__(self) -> None:
         """Inisialisasi StatusManager."""
         self._status = self._load_status()
-        self._last_cleanup: float = 0.0  # Ubah ke float untuk timestamp
-        self._maybe_cleanup()  # Ini akan menjalankan cleanup pertama
 
     def _load_status(self) -> Status:
         """Load status dari file."""
@@ -100,7 +98,9 @@ class StatusManager:
 
     def get_active_groups(self) -> list[str]:
         """Ambil daftar grup yang aktif."""
-        self._maybe_cleanup()  # Cleanup sebelum filter grup
+        # Selalu cleanup sebelum mengambil grup aktif
+        self._cleanup()
+
         current_time = time.time()
         active = [
             group
@@ -111,6 +111,8 @@ class StatusManager:
                 or self._status["slowmode"][group]["expires_at"] <= current_time
             )
         ]
+
+        # Log status setelah cleanup
         logger.info(
             "📊 Status grup: %d total, %d blacklist, %d slowmode, %d aktif",
             len(self._status["groups"]),
@@ -163,13 +165,6 @@ class StatusManager:
         self._status["flood_wait_history"].append((current_time, seconds))
         self._save_status()  # Langsung save tanpa cleanup
 
-    def _maybe_cleanup(self) -> None:
-        """Jalankan cleanup jika sudah waktunya (setiap 5 menit)."""
-        current_time = time.time()
-        if current_time - self._last_cleanup >= 300:  # 5 menit
-            self._cleanup()
-            self._last_cleanup = current_time
-
     def _cleanup(self) -> None:
         """Bersihkan data yang expired."""
         current_time = time.time()
@@ -183,6 +178,13 @@ class StatusManager:
         }
         after_slowmode = len(self._status["slowmode"])
 
+        # Log hasil cleanup jika ada perubahan
+        if before_slowmode != after_slowmode:
+            logger.info(
+                "🧹 Cleanup %d slowmode yang expired", before_slowmode - after_slowmode
+            )
+            self._save_status()
+
         # Cleanup flood history
         before_flood = len(self._status["flood_wait_history"])
         self._status["flood_wait_history"] = [
@@ -193,10 +195,6 @@ class StatusManager:
         after_flood = len(self._status["flood_wait_history"])
 
         # Log hasil cleanup
-        if before_slowmode != after_slowmode:
-            logger.info(
-                "🧹 Cleanup %d slowmode yang expired", before_slowmode - after_slowmode
-            )
         if before_flood != after_flood:
             logger.info(
                 "🧹 Cleanup %d flood history yang expired", before_flood - after_flood

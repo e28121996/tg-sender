@@ -40,6 +40,7 @@ class BotRunner:
 
             # 3. Start dan validasi sesi
             await telegram_client.start()
+
             if not await telegram_client.is_user_authorized():
                 raise AuthError("User belum terautentikasi")
 
@@ -81,6 +82,5 @@ class BotRunner:
         try:
             if self.telegram_client:
                 await self.telegram_client.stop()
-                self.status_manager._cleanup()
         except Exception as e:
             logger.error("❌ Error cleanup: %s", str(e))
