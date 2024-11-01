@@ -6,7 +6,7 @@ modules = ["python-3.12", "nix"]
 channel = "stable-24_05"
 
 [deployment]
-run = ["python", "main.py"]
+run = ["sh", "-c", "python main.py"]
 deploymentTarget = "cloudrun"
 
 [env]
