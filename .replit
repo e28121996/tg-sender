@@ -1,8 +1,9 @@
 run = "python main.py"
 language = "python3"
+modules = ["python-3.12", "nix"]
 
 [nix]
-channel = "stable-23_11"
+channel = "stable-24_05"
 
 [deployment]
 run = ["python", "main.py"]
@@ -19,4 +20,4 @@ syntax = "python"
 start = ["pylsp"]
 
 [unitTest]
-language = "python3" 
+language = "python3"
