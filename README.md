@@ -17,16 +17,14 @@
 - Penanganan FloodWait error sesuai standar Telegram
 
 ### 4. Sistem Logging
-- Deteksi otomatis environment (Heroku/Local)
-- Heroku: Log ke stdout saja
-- Local: Log ke stdout saja
-- Format log disesuaikan dengan environment
+- Log ke stdout saja
+- Format log sederhana dan konsisten
 
 ## Alur Kerja Detail
 
 ### 1. Inisialisasi
 - Load konfigurasi dari env vars termasuk session string
-- Setup logging berdasarkan environment (DYNO)
+- Setup logging
 - Load status.json
 - Setup session Telegram
 - Load daftar grup dan template
@@ -78,7 +76,7 @@
 - Handle FloodWait dengan backoff strategy
 
 #### c. Error Handling
-- Catat error ke log sesuai format environment
+- Catat error ke log
 - Update status grup di status.json
 - Lanjut ke grup berikutnya
 
@@ -96,11 +94,6 @@
 
 ### 6. Logging
 
-#### a. Konfigurasi Environment
-- Deteksi Heroku via DYNO env var
-- Format sederhana untuk Heroku
-- Format detail untuk local
-
-#### b. Output
-- Heroku: stdout only
-- Local: stdout only
+#### Output
+- Log ke stdout saja
+- Format log sederhana dan konsisten
