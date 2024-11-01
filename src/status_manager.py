@@ -168,6 +168,7 @@ class StatusManager:
     def _cleanup(self) -> None:
         """Bersihkan data yang expired."""
         current_time = time.time()
+        changes = False
 
         # Cleanup slowmode
         before_slowmode = len(self._status["slowmode"])
@@ -178,13 +179,6 @@ class StatusManager:
         }
         after_slowmode = len(self._status["slowmode"])
 
-        # Log hasil cleanup jika ada perubahan
-        if before_slowmode != after_slowmode:
-            logger.info(
-                "🧹 Cleanup %d slowmode yang expired", before_slowmode - after_slowmode
-            )
-            self._save_status()
-
         # Cleanup flood history
         before_flood = len(self._status["flood_wait_history"])
         self._status["flood_wait_history"] = [
@@ -194,14 +188,20 @@ class StatusManager:
         ]
         after_flood = len(self._status["flood_wait_history"])
 
-        # Log hasil cleanup
+        # Log dan save hanya jika ada perubahan
+        if before_slowmode != after_slowmode:
+            logger.info(
+                "🧹 Cleanup %d slowmode yang expired", before_slowmode - after_slowmode
+            )
+            changes = True
+
         if before_flood != after_flood:
             logger.info(
                 "🧹 Cleanup %d flood history yang expired", before_flood - after_flood
             )
+            changes = True
 
-        # Save jika ada perubahan
-        if before_slowmode != after_slowmode or before_flood != after_flood:
+        if changes:
             self._save_status()
 
     def _load_messages(self) -> list[str]:

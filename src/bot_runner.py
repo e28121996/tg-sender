@@ -79,8 +79,8 @@ class BotRunner:
 
     async def cleanup(self) -> None:
         """Bersihkan resources."""
-        try:
-            if self.telegram_client:
+        if self.telegram_client:
+            try:
                 await self.telegram_client.stop()
-        except Exception as e:
-            logger.error("❌ Error cleanup: %s", str(e))
+            except Exception as e:
+                logger.error("❌ Error cleanup: %s", str(e))
