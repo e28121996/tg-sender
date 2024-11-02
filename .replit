@@ -1,25 +1,48 @@
+# Main configuration
+run = "python3 src/main.py"
+language = "python3"
 entrypoint = "src/main.py"
 modules = ["python-3.10:v18-20230807-322e88b"]
 
+# Nix configuration
 [nix]
 channel = "stable-23_05"
 
-[deployment]
-run = ["python3", "src/main.py"]
-deploymentTarget = "cloudrun"
-
-hidden = [".config", "**/__pycache__", "**/.pytest_cache", "**/*.pyc"]
-
+# Environment variables
 [env]
 PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
-PYTHONUNBUFFERED = "1"  # Untuk real-time logging
+PYTHONUNBUFFERED = "1"
 
-[languages.python3]
+# Web server configuration
+[webview]
+port = 8080
+
+# Language configuration
+[languages]
+
+[languages.python]
 pattern = "**/*.py"
 syntax = "python"
 
-[languages.python3.languageServer]
+[languages.python.languageServer]
 start = ["pylsp"]
 
-[unitTest]
+# Files to hide
+hidden = [
+  ".config",
+  "**/__pycache__",
+  "**/.pytest_cache", 
+  "**/*.pyc"
+]
+
+# Package management
+[packager]
 language = "python3"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
+# Hosting configuration
+[hosting]
+route = "/"

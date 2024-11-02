@@ -16,11 +16,14 @@ logger = setup_logger(name=__name__)
 STATUS_FILE: Final[Path] = DATA_DIR / "status.json"
 
 # Default status data
-DEFAULT_STATUS: Final[StatusData] = {
-    "blacklist": {},
-    "slowmode": {},
-    "last_updated": 0.0,
-}
+DEFAULT_STATUS: Final[StatusData] = cast(
+    StatusData,
+    {
+        "blacklist": {},
+        "slowmode": {},
+        "last_updated": 0.0,
+    },
+)
 
 
 class StatusManager(StatusManagerProtocol):
@@ -28,7 +31,7 @@ class StatusManager(StatusManagerProtocol):
 
     def __init__(self) -> None:
         """Inisialisasi status manager."""
-        self._status: StatusData = DEFAULT_STATUS.copy()
+        self._status: StatusData = cast(StatusData, DEFAULT_STATUS.copy())
         self._groups: list[str] = []
         self._load_status()
         self._load_groups()
@@ -101,15 +104,15 @@ class StatusManager(StatusManagerProtocol):
 
         except json.JSONDecodeError as e:
             logger.error("❌ File status corrupt: %s", str(e))
-            self._status = DEFAULT_STATUS.copy()
+            self._status = cast(StatusData, DEFAULT_STATUS.copy())
             self.save()  # Overwrite corrupt file
         except StatusError as e:
             logger.error("❌ %s", str(e))
-            self._status = DEFAULT_STATUS.copy()
+            self._status = cast(StatusData, DEFAULT_STATUS.copy())
             self.save()  # Overwrite invalid file
         except Exception as e:
             logger.error("❌ Error saat load status: %s", str(e))
-            self._status = DEFAULT_STATUS.copy()
+            self._status = cast(StatusData, DEFAULT_STATUS.copy())
             self.save()  # Overwrite problematic file
 
     def _load_groups(self) -> None:
@@ -139,11 +142,11 @@ class StatusManager(StatusManagerProtocol):
 
     def get_blacklist(self) -> dict[str, str]:
         """Get dict blacklist."""
-        return self._status["blacklist"]
+        return cast(dict[str, str], self._status["blacklist"])
 
     def get_slowmode(self) -> dict[str, SlowmodeInfo]:
         """Get dict slowmode."""
-        return self._status["slowmode"]
+        return cast(dict[str, SlowmodeInfo], self._status["slowmode"])
 
     def save(self) -> None:
         """Save status ke file."""
