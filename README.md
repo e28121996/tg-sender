@@ -1,99 +1,120 @@
-# Telegram Message Sender
+# FITUR UTAMA
 
-## Fitur Utama
+## 1. Penggunaan Akun
+* Menggunakan akun pengguna Telegram (bukan API bot)
+* Session string dari environment variable
+* Validasi session saat startup
 
-### 1. Penggunaan Akun
-- Menggunakan akun pengguna Telegram (bukan API bot)
-- Session string dari environment variable
+## 2. Penyimpanan Data
+* File status.json untuk menyimpan status dan data
+* Format: groups, messages, blacklist, slowmode
+* Cache untuk status slowmode dan blacklist
+* Validasi struktur dengan TypedDict
+* Auto save saat perubahan
 
-### 2. Penyimpanan Data
-- File status.json untuk menyimpan status dan data
-- Cache untuk status slowmode dan blacklist dalam file
+## 3. Mekanisme Pengiriman
+* Batch 4 pesan dengan interval 4±2 detik
+* Jeda 15±2 detik antar batch
+* Template pesan random untuk setiap pengiriman
+* Random interval 1.1-1.3 jam antar sesi
 
-### 3. Mekanisme Pengiriman
-- Batch 4 pesan dengan interval 4±2 detik
-- Jeda 15±2 detik antar batch
-- Deteksi otomatis slowmode
-- Penanganan FloodWait error sesuai standar Telegram
+## 4. Blacklist System
+* Auto blacklist untuk error fatal
+* Permanent storage di status.json
+* Alasan blacklist disimpan
+* Skip grup yang di-blacklist
+* Error yang di-blacklist:
+  - ChatWriteForbiddenError: Tidak bisa kirim pesan
+  - UserBannedInChannelError: Akun dibanned
+  - ChannelPrivateError: Grup private
+  - ChatAdminRequiredError: Butuh hak admin
+  - UsernameInvalidError: Format username invalid
+  - UsernameNotOccupiedError: Username tidak ada
+  - ChatRestrictedError: Grup dibatasi
+  - ChatGuestSendForbiddenError: Guest tidak boleh kirim
+  - PeerIdInvalidError: ID grup invalid
+  - MessageTooLongError: Pesan terlalu panjang
+  - MessageNotModifiedError: Pesan tidak berubah
+  - ValueError: Link tidak valid
 
-### 4. Sistem Logging
-- Log ke stdout saja
-- Format log sederhana dan konsisten
+## 5. Slowmode Handling
+* Deteksi otomatis dari SlowModeWaitError
+* Temporary storage dengan expiry time
+* Auto cleanup yang sudah expired
+* Skip grup selama durasi slowmode
+* Format penyimpanan:
+  - duration: Durasi dalam detik
+  - expires_at: Timestamp berakhir
 
-## Alur Kerja Detail
+## 6. Sistem Logging
+* Log ke stdout saja
+* Format: timestamp - message (max 100 chars)
+* Emoji untuk status visual
 
-### 1. Inisialisasi
-- Load konfigurasi dari env vars termasuk session string
-- Setup logging
-- Load status.json
-- Setup session Telegram
-- Load daftar grup dan template
+# ALUR KERJA DETAIL
 
-### 2. Pengecekan Grup
+## 1. Proses Startup
+1. Start web server untuk keep-alive
+2. Validasi environment variables
+3. Validasi struktur folder dan file
+4. Setup logging
+5. Create instance BotRunner
 
-#### a. Pre-send Validation
-- Cek status blacklist
-- Cek status slowmode
+## 2. Proses Inisialisasi
+1. Setup Telegram client dengan session string
+2. Validasi autentikasi session
+3. Load status.json
+4. Load daftar grup dan template pesan
+5. Setup message sender
 
-#### b. Slowmode Detection
-- Catch SlowModeWaitError
-- Catat durasi slowmode di status.json
-- Skip grup untuk sementara
+## 3. Proses Pre-send
+1. Cleanup slowmode yang expired
+2. Update status.json jika ada perubahan
+3. Hitung statistik grup:
+   - Total grup
+   - Jumlah blacklist
+   - Jumlah slowmode
+   - Grup aktif
+4. Filter grup aktif (non-blacklist & non-slowmode)
 
-#### c. FloodWait Handling
-- Deteksi FloodWaitError
-- Implementasi exponential backoff (2^n seconds)
-- Maksimal retry 3x dengan interval meningkat
-- Pause global jika terlalu sering
+## 4. Proses Pengiriman
+1. Bagi grup aktif menjadi batch @4
+2. Untuk setiap batch:
+   - Log info batch
+   - Untuk setiap grup:
+     * Pilih template random
+     * Kirim pesan
+     * Handle error
+     * Delay 4±2 detik
+   - Delay 15±2 detik ke batch berikutnya
+3. Log statistik hasil
 
-### 3. Penanganan Error
+## 5. Error Handling
+1. Jika SlowModeWaitError:
+   - Add ke slowmode + expiry
+   - Skip grup sementara
 
-#### Auto Blacklist
-- ChatWriteForbiddenError: Tidak ada izin menulis
-- UserBannedInChannelError: User dibanned
-- ChannelPrivateError: Grup private
-- ChatAdminRequiredError: Butuh hak admin
-- UsernameInvalidError: Format invalid
-- UsernameNotOccupiedError: Username tidak ada
-- ValueError: Link tidak valid
-- ChatRestrictedError
-- ChatGuestSendForbiddenError
-- PeerIdInvalidError
-- MessageTooLongError
-- MessageNotModifiedError
+2. Jika FloodWaitError:
+   - Retry dengan delay
+   - Skip jika gagal
 
-### 4. Proses Pengiriman
+3. Jika Error Fatal:
+   - Add ke blacklist + alasan
+   - Skip grup permanen
 
-#### a. Persiapan
-- Filter grup blacklist
-- Filter grup slowmode aktif
-- Bagi menjadi batch 4 grup
+## 6. Proses Interval
+1. Log statistik final
+2. Generate random interval (1.1-1.3 jam)
+3. Sleep sampai sesi berikutnya
 
-#### b. Eksekusi per Batch
-- Pilih template secara acak dari daftar template yang tersedia
-- Kirim dengan delay 4±2 detik
-- Tunggu 15±2 detik untuk batch berikutnya
-- Handle FloodWait dengan backoff strategy
+## 7. Error Recovery
+1. Jika error fatal: break loop
+2. Jika error Telegram: retry 5 menit
+3. Cleanup resources
+4. Log error
 
-#### c. Error Handling
-- Catat error ke log
-- Update status grup di status.json
-- Lanjut ke grup berikutnya
+## 8. Proses Shutdown
+1. Disconnect Telegram client
+2. Clear resources
+3. Exit program
 
-### 5. Manajemen Status
-
-#### a. Blacklist
-- Simpan grup + alasan
-- Permanent storage di status.json
-- Skip saat pengiriman
-
-#### b. Slowmode
-- Catat durasi + waktu berakhir
-- Temporary storage di status.json
-- Auto cleanup expired entries
-
-### 6. Logging
-
-#### Output
-- Log ke stdout saja
-- Format log sederhana dan konsisten

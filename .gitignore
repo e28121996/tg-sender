@@ -1,9 +1,8 @@
-# Git
-.git/
-
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+.Python
 *.so
 *.egg-info/
 .installed.cfg
@@ -29,10 +28,13 @@ data/status.json
 *.session-journal
 .env
 
-# Replit (hanya file temporary)
+# Replit specific
 .breakpoints
 .config/
 .upm/
+.cache/
+replit.nix
+poetry.lock
 
 # OS specific
 .DS_Store

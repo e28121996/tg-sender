@@ -1,52 +1,100 @@
-"""Modul untuk exception kustom."""
+"""Custom exceptions untuk aplikasi."""
+
+from typing import Final
+
+# Error codes
+ERR_CONFIG: Final[str] = "CFG"  # Configuration/environment errors
+ERR_AUTH: Final[str] = "AUTH"  # Authentication errors
+ERR_TELEGRAM: Final[str] = "TG"  # Telegram API errors
+ERR_STATUS: Final[str] = "STS"  # Status management errors
 
 
-class TelegramError(Exception):
-    """Base exception untuk error Telegram."""
+class BotError(Exception):
+    """Base exception untuk semua error bot.
 
-    def __init__(self, message: str) -> None:
-        """Inisialisasi exception dengan pesan."""
+    Attributes:
+        code: Kode error untuk identifikasi
+        message: Pesan error yang deskriptif
+    """
+
+    def __init__(self, message: str, code: str = "") -> None:
+        """Initialize exception.
+
+        Args:
+            message: Pesan error yang deskriptif
+            code: Kode error untuk identifikasi
+        """
+        self.code = code
         self.message = message
-        super().__init__(self.message)
+        super().__init__(f"[{code}] {message}" if code else message)
 
 
-class AuthError(TelegramError):
-    """Exception untuk error autentikasi."""
+class ConfigError(BotError):
+    """Error konfigurasi atau environment.
 
-    def __init__(self, message: str = "Autentikasi gagal") -> None:
-        """Inisialisasi AuthError."""
-        super().__init__(message)
-
-
-class ConfigError(TelegramError):
-    """Exception untuk error konfigurasi."""
-
-    def __init__(self, message: str = "Konfigurasi tidak lengkap") -> None:
-        """Inisialisasi ConfigError."""
-        super().__init__(message)
-
-
-class StatusError(TelegramError):
-    """Exception untuk error status."""
+    Digunakan untuk:
+    - Environment variables tidak lengkap/invalid
+    - File konfigurasi tidak valid/missing
+    - Struktur folder/file tidak sesuai
+    - Bot belum diinisialisasi
+    """
 
     def __init__(self, message: str) -> None:
-        """Inisialisasi StatusError."""
-        super().__init__(message)
+        """Initialize config error."""
+        super().__init__(message, ERR_CONFIG)
+
+
+class AuthError(BotError):
+    """Error autentikasi Telegram.
+
+    Digunakan untuk:
+    - Session string tidak valid/expired
+    - API credentials salah/invalid
+    - Akun dibanned/restricted
+    - User tidak terautentikasi
+    """
+
+    def __init__(self, message: str) -> None:
+        """Initialize auth error."""
+        super().__init__(message, ERR_AUTH)
+
+
+class TelegramError(BotError):
+    """Error operasi Telegram.
+
+    Digunakan untuk:
+    - Network error/timeout
+    - Rate limiting/flood wait
+    - API error responses
+    - Slowmode restrictions
+    - Permission errors
+    - Invalid group/chat errors
+    """
+
+    def __init__(self, message: str) -> None:
+        """Initialize telegram error."""
+        super().__init__(message, ERR_TELEGRAM)
+
+
+class StatusError(BotError):
+    """Error manajemen status.
+
+    Digunakan untuk:
+    - File status.json corrupt/invalid
+    - Error saat save/load status
+    - Struktur data tidak valid
+    - Validasi data gagal
+    """
+
+    def __init__(self, message: str) -> None:
+        """Initialize status error."""
+        super().__init__(message, ERR_STATUS)
 
 
 class SlowModeError(TelegramError):
-    """Exception untuk error slowmode."""
+    """Error untuk slowmode."""
 
-    def __init__(self, duration: int) -> None:
-        """Inisialisasi SlowModeError dengan durasi."""
-        super().__init__(f"Slowmode {duration} detik")
-        self.duration = duration
-
-
-class FloodWaitError(TelegramError):
-    """Exception untuk error FloodWait."""
-
-    def __init__(self, seconds: int) -> None:
-        """Inisialisasi FloodWaitError dengan waktu tunggu."""
-        super().__init__(f"FloodWait {seconds} detik")
+    def __init__(self, seconds: float) -> None:
+        """Init dengan durasi slowmode."""
+        super().__init__(f"Slowmode wait: {seconds} seconds")
         self.seconds = seconds

@@ -1,16 +1,18 @@
-run = "python main.py"
-language = "python3"
-modules = ["python-3.12", "nix"]
+entrypoint = "src/main.py"
+modules = ["python-3.10:v18-20230807-322e88b"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-23_05"
 
 [deployment]
-run = ["sh", "-c", "python main.py"]
+run = ["python3", "src/main.py"]
 deploymentTarget = "cloudrun"
+
+hidden = [".config", "**/__pycache__", "**/.pytest_cache", "**/*.pyc"]
 
 [env]
 PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
+PYTHONUNBUFFERED = "1"  # Untuk real-time logging
 
 [languages.python3]
 pattern = "**/*.py"

@@ -1,104 +1,130 @@
-"""Modul untuk menangani operasi klien Telegram."""
+"""Modul untuk interaksi dengan Telegram."""
 
-from telethon import TelegramClient as BaseTelegramClient
+import asyncio
+from typing import Final, cast
+
 from telethon.errors import (
     ChannelPrivateError,
     ChatAdminRequiredError,
     ChatGuestSendForbiddenError,
     ChatRestrictedError,
     ChatWriteForbiddenError,
+    FloodWaitError,
     MessageNotModifiedError,
     MessageTooLongError,
     PeerIdInvalidError,
     SlowModeWaitError,
+    UnauthorizedError,
     UserBannedInChannelError,
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
-from telethon.errors import (
-    FloodWaitError as TelethonFloodWaitError,
-)
+from telethon.sessions import StringSession
+from telethon.sync import TelegramClient as BaseTelegramClient
 
-from .exceptions import AuthError, FloodWaitError
+from .config import CONFIG
+from .exceptions import AuthError, TelegramError
 from .logger import setup_logger
-from .status_manager import StatusManager
+from .types import TelegramClientProtocol
 
-logger = setup_logger(__name__)
+logger = setup_logger(name=__name__)
+
+# Tambah konstanta timeout
+CONNECT_TIMEOUT: Final[int] = 30  # 30 detik
+SEND_TIMEOUT: Final[int] = 15  # 15 detik
 
 
-class TelegramClient:
-    """Wrapper untuk klien Telegram."""
+class TelegramClient(TelegramClientProtocol):
+    """Wrapper untuk Telethon client."""
 
-    def __init__(
-        self,
-        client: BaseTelegramClient,
-        status_manager: StatusManager,
-    ) -> None:
-        """Inisialisasi TelegramClient."""
-        self.client = client
-        self.status = status_manager
+    def __init__(self) -> None:
+        """Inisialisasi client."""
+        self._client: BaseTelegramClient | None = None
 
-    async def start(self) -> None:
-        """Start client Telegram."""
+    async def connect(self) -> None:
+        """Connect dan validasi session."""
         try:
-            await self.client.start()
-            logger.info("✅ Client Telegram started")
+            session: StringSession = StringSession(CONFIG["SESSION_STRING"])
+            api_id: int = int(CONFIG["API_ID"])
+            api_hash: str = CONFIG["API_HASH"]
+
+            client: BaseTelegramClient = BaseTelegramClient(
+                session,
+                api_id,
+                api_hash,
+                timeout=CONNECT_TIMEOUT,  # Tambah timeout
+            )
+            await client.connect()
+
+            if not await client.is_user_authorized():
+                await self.disconnect()
+                raise AuthError("Session string tidak valid")
+
+            self._client = client
+            logger.info("✅ Berhasil connect ke Telegram")
+
+        except UnauthorizedError as e:
+            await self.disconnect()
+            raise AuthError("Session string tidak valid") from e
         except Exception as e:
-            logger.error("❌ Error start client: %s", str(e))
-            raise AuthError("Gagal start client") from e
+            connect_error: str = str(e)
+            await self.disconnect()
+            raise TelegramError(f"Error saat connect: {connect_error}") from e
 
-    async def stop(self) -> None:
-        """Stop client Telegram."""
-        try:
-            await self.client.disconnect()
-            logger.info("✅ Client Telegram stopped")
-        except Exception as e:
-            logger.error("❌ Error stop client: %s", str(e))
+    async def disconnect(self) -> None:
+        """Disconnect dari Telegram."""
+        if self._client:
+            try:
+                await self._client.disconnect()
+                logger.info("✅ Berhasil disconnect dari Telegram")
+            except Exception as e:
+                disconnect_error: str = str(e)
+                logger.error("❌ Error saat disconnect: %s", disconnect_error)
+            finally:
+                self._client = None
 
-    async def is_user_authorized(self) -> bool:
-        """Cek apakah user sudah terautentikasi."""
-        try:
-            result = await self.client.is_user_authorized()
-            return bool(result)
-        except Exception as e:
-            logger.error("❌ Error cek auth: %s", str(e))
-            return False
+    def _validate_client(self) -> None:
+        """Validasi client sudah diinisialisasi."""
+        if not self._client:
+            raise TelegramError("Client belum diinisialisasi")
 
-    async def send_message(self, group: str, message: str) -> None:
-        """Send message with specified error handling."""
+    async def send_message(self, chat: str, message: str) -> None:
+        """Kirim pesan ke grup."""
+        self._validate_client()
+        client = cast(BaseTelegramClient, self._client)
+
         try:
-            await self.client.send_message(group, message)
-            logger.info("✅ Pesan terkirim ke %s", group)
+            await asyncio.wait_for(
+                client.send_message(chat, message), timeout=SEND_TIMEOUT
+            )
+        except TimeoutError as err:
+            raise TelegramError(f"Timeout setelah {SEND_TIMEOUT} detik") from err
 
         except (
             ChatWriteForbiddenError,
             UserBannedInChannelError,
             ChannelPrivateError,
             ChatAdminRequiredError,
+            UsernameInvalidError,
+            UsernameNotOccupiedError,
             ChatRestrictedError,
             ChatGuestSendForbiddenError,
             PeerIdInvalidError,
             MessageTooLongError,
             MessageNotModifiedError,
-            UsernameInvalidError,
-            UsernameNotOccupiedError,
             ValueError,
-        ) as e:
-            reason = str(e).split("(")[0].strip()
-            self.status.add_to_blacklist(group, reason)
-            return
+        ) as err:
+            permission_error: str = str(err)
+            raise TelegramError(f"Permission error: {permission_error}") from err
 
-        except SlowModeWaitError as e:
-            duration = int(str(e).split()[3])
-            self.status.add_slowmode(group, duration)
-            return
+        except SlowModeWaitError as err:
+            slowmode_duration: float = float(err.seconds)
+            raise TelegramError(f"Slowmode error: {slowmode_duration}") from err
 
-        except TelethonFloodWaitError as e:
-            self.status.add_flood_wait(e.seconds)
-            raise FloodWaitError(e.seconds) from e
+        except FloodWaitError as err:
+            flood_duration: float = float(err.seconds)
+            raise TelegramError(f"Flood wait error: {flood_duration}") from err
 
-        except Exception as e:
-            if "CHAT_SEND_PLAIN_FORBIDDEN" in str(e):
-                self.status.add_to_blacklist(group, str(e))
-                return
-            raise
+        except Exception as err:
+            send_error: str = str(err)
+            raise TelegramError(f"Send error: {send_error}") from err

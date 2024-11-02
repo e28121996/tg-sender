@@ -1,49 +1,61 @@
-"""Modul untuk konfigurasi dari environment variables."""
+"""Modul untuk konfigurasi aplikasi."""
 
 import os
-from typing import TypedDict
+from pathlib import Path
+from typing import Final, TypedDict
 
 from .exceptions import ConfigError
+from .logger import setup_logger
+
+logger = setup_logger(name=__name__)
 
 
-class Config(TypedDict):
-    """Format konfigurasi."""
+class ConfigDict(TypedDict):
+    """Type untuk konfigurasi aplikasi."""
 
-    API_ID: int
+    API_ID: str
     API_HASH: str
     PHONE_NUMBER: str
     SESSION_STRING: str
 
 
-def load_config() -> Config:
-    """Load konfigurasi dari environment variables.
+# Konstanta untuk path
+DATA_DIR: Final[Path] = Path("data")
+GROUPS_FILE: Final[Path] = DATA_DIR / "groups.txt"
+MESSAGES_DIR: Final[Path] = DATA_DIR / "messages"
+STATUS_FILE: Final[Path] = DATA_DIR / "status.json"
+
+
+def load_config() -> ConfigDict:
+    """Load dan validasi konfigurasi dari environment.
 
     Returns:
-        Config: Dictionary berisi konfigurasi
+        ConfigDict: Konfigurasi yang sudah divalidasi
 
     Raises:
-        ConfigError: Jika ada environment variable yang tidak lengkap
+        ConfigError: Jika ada environment variable yang tidak valid
     """
-    # Cek environment variables yang diperlukan
-    required = ["API_ID", "API_HASH", "PHONE_NUMBER", "SESSION_STRING"]
-    missing = [var for var in required if not os.getenv(var)]
-    if missing:
-        raise ConfigError(f"Environment variables tidak lengkap: {', '.join(missing)}")
-
-    # Validasi API_ID harus berupa angka
     try:
-        api_id = int(os.environ["API_ID"])
-    except ValueError as e:
-        raise ConfigError("API_ID harus berupa angka") from e
+        config: ConfigDict = {
+            "API_ID": os.getenv("API_ID", ""),
+            "API_HASH": os.getenv("API_HASH", ""),
+            "PHONE_NUMBER": os.getenv("PHONE_NUMBER", ""),
+            "SESSION_STRING": os.getenv("SESSION_STRING", ""),
+        }
 
-    # Return config yang sudah divalidasi
-    return {
-        "API_ID": api_id,
-        "API_HASH": os.environ["API_HASH"],
-        "PHONE_NUMBER": os.environ["PHONE_NUMBER"],
-        "SESSION_STRING": os.environ["SESSION_STRING"],
-    }
+        # Validasi nilai tidak kosong
+        missing = [key for key, value in config.items() if not value]
+        if missing:
+            raise ConfigError(
+                f"Environment variables tidak lengkap: {', '.join(missing)}"
+            )
+
+        logger.info("✅ Konfigurasi berhasil diload")
+        return config
+
+    except Exception as e:
+        raise ConfigError(f"Error saat load konfigurasi: {e}") from e
 
 
-# Load config sekali saat import
-CONFIG = load_config()
+# Load config saat import
+CONFIG: Final[ConfigDict] = load_config()

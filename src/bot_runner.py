@@ -1,86 +1,79 @@
-"""Modul untuk menjalankan bot Telegram."""
+"""Modul untuk menjalankan bot."""
 
-from telethon import TelegramClient as BaseTelegramClient
-from telethon.sessions import StringSession
+import asyncio
+import random
+from typing import Final
 
-from .config import CONFIG
-from .exceptions import AuthError, TelegramError
 from .logger import setup_logger
 from .message_sender import MessageSender
 from .status_manager import StatusManager
 from .telegram_client import TelegramClient
 
-logger = setup_logger(__name__)
+logger = setup_logger(name=__name__)
+
+# Konstanta untuk pengiriman pesan
+BATCH_SIZE: Final[int] = 4  # Jumlah pesan per batch
+BATCH_DELAY: Final[tuple[int, int]] = (13, 17)  # Interval 15±2 detik
 
 
 class BotRunner:
-    """Runner utama untuk bot Telegram."""
+    """Class untuk menjalankan bot."""
 
     def __init__(self) -> None:
-        """Inisialisasi BotRunner."""
-        self.status_manager = StatusManager()
-        self.telegram_client: TelegramClient | None = None
-        self.message_sender: MessageSender | None = None
+        """Inisialisasi bot runner."""
+        self.client = TelegramClient()
+        self.status = StatusManager()
+        self.sender = MessageSender(self.client, self.status)
 
     async def initialize(self) -> None:
-        """Inisialisasi komponen bot sesuai spesifikasi."""
+        """Inisialisasi koneksi dan validasi."""
         try:
-            # 1. Setup client dengan session string dari env
-            base_client = BaseTelegramClient(
-                StringSession(CONFIG["SESSION_STRING"]),
-                CONFIG["API_ID"],
-                CONFIG["API_HASH"],
-            )
-
-            # 2. Setup wrapper client dengan status manager
-            telegram_client = TelegramClient(
-                base_client,
-                self.status_manager,
-            )
-
-            # 3. Start dan validasi sesi
-            await telegram_client.start()
-
-            if not await telegram_client.is_user_authorized():
-                raise AuthError("User belum terautentikasi")
-
-            # 4. Setup message sender
-            self.telegram_client = telegram_client
-            self.message_sender = MessageSender(
-                telegram_client,
-                self.status_manager,
-            )
-
+            await self.client.connect()
             logger.info("✅ Bot berhasil diinisialisasi")
-
         except Exception as e:
-            await self.cleanup()
-            raise TelegramError(f"Inisialisasi gagal: {e!s}") from e
-
-    async def run(self) -> None:
-        """Jalankan proses pengiriman pesan."""
-        if not self.telegram_client or not self.message_sender:
-            logger.error("❌ Bot belum diinisialisasi")
-            return
-
-        try:
-            # Ambil daftar grup aktif (tidak blacklist/slowmode)
-            groups = self.status_manager.get_active_groups()
-            if not groups:
-                logger.warning("⚠️ Tidak ada grup aktif")
-                return
-
-            # Proses pengiriman dalam batch
-            await self.message_sender.send_messages_in_batches(groups)
-
-        except Exception as e:
-            logger.error("❌ Error: %s", str(e))
+            logger.error("❌ Error saat inisialisasi bot: %s", str(e))
+            await self.client.disconnect()
             raise
 
-    async def cleanup(self) -> None:
-        """Bersihkan resources."""
-        if self.telegram_client:
-            try:
-                await self.telegram_client.stop()
-            except Exception as e:
-                logger.error("❌ Error cleanup: %s", str(e))
+    async def run(self) -> None:
+        """Jalankan bot."""
+        try:
+            # Cleanup slowmode sebelum mulai
+            self.status.cleanup_expired_slowmode()
+
+            # Get active groups
+            active_groups = self.status.get_active_groups()
+            total = len(self.status.get_groups())
+            blacklisted = len(self.status.get_blacklist())
+            slowmode = len(self.status.get_slowmode())
+            active = len(active_groups)
+
+            logger.info(
+                "📊 Statistik - Total: %d, Blacklist: %d, Slowmode: %d, Aktif: %d",
+                total,
+                blacklisted,
+                slowmode,
+                active,
+            )
+
+            # Proses per batch
+            for i in range(0, len(active_groups), BATCH_SIZE):
+                batch: list[str] = active_groups[i : i + BATCH_SIZE]
+                logger.info(
+                    "📦 Memproses batch %d/%d",
+                    i // BATCH_SIZE + 1,
+                    -(-len(active_groups) // BATCH_SIZE),
+                )
+
+                await self.sender.send_batch(batch)
+
+                if i + BATCH_SIZE < len(active_groups):
+                    delay: float = random.uniform(BATCH_DELAY[0], BATCH_DELAY[1])
+                    await asyncio.sleep(delay)
+
+        except Exception as e:
+            logger.error("❌ Error saat jalankan bot: %s", str(e))
+            raise
+
+        finally:
+            await self.client.disconnect()

@@ -1,245 +1,189 @@
 """Modul untuk mengelola status.json."""
 
 import json
-import random
 import time
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Final, cast
 
+from .config import DATA_DIR, GROUPS_FILE
 from .exceptions import StatusError
 from .logger import setup_logger
+from .types import SlowmodeInfo, StatusData, StatusManagerProtocol
 
-logger = setup_logger(__name__)
+logger = setup_logger(name=__name__)
 
-DATA_DIR = Path("data")
-STATUS_FILE = DATA_DIR / "status.json"
+# Konstanta untuk file status
+STATUS_FILE: Final[Path] = DATA_DIR / "status.json"
 
-
-class SlowModeInfo(TypedDict):
-    """Format data slowmode."""
-
-    duration: int  # Durasi dalam detik
-    expires_at: float  # UNIX timestamp kapan slowmode berakhir
-
-
-class Status(TypedDict):
-    """Format status.json."""
-
-    groups: list[str]  # Daftar grup
-    messages: list[str]  # Template pesan
-    blacklist: dict[str, str]  # {group: reason}
-    slowmode: dict[str, SlowModeInfo]  # {group: info}
-    flood_wait_history: list[tuple[float, int]]  # [(timestamp, seconds), ...]
+# Default status data
+DEFAULT_STATUS: Final[StatusData] = {
+    "blacklist": {},
+    "slowmode": {},
+    "last_updated": 0.0,
+}
 
 
-def _validate_status(data: Any) -> Status:
-    """Validasi struktur status dari JSON."""
-    if not isinstance(data, dict):
-        raise ValueError("Status harus berupa dict")
-
-    required = {"groups", "messages", "blacklist", "slowmode", "flood_wait_history"}
-    missing = {key for key in required if key not in data}
-    if missing:
-        raise ValueError(f"Status tidak memiliki keys: {missing}")
-
-    return Status(
-        groups=data["groups"],
-        messages=data["messages"],
-        blacklist=data["blacklist"],
-        slowmode=data["slowmode"],
-        flood_wait_history=data["flood_wait_history"],
-    )
-
-
-class StatusManager:
-    """Kelas untuk mengelola status.json."""
+class StatusManager(StatusManagerProtocol):
+    """Class untuk mengelola status.json."""
 
     def __init__(self) -> None:
-        """Inisialisasi StatusManager."""
-        self._status = self._load_status()
+        """Inisialisasi status manager."""
+        self._status: StatusData = DEFAULT_STATUS.copy()
+        self._groups: list[str] = []
+        self._load_status()
+        self._load_groups()
 
-    def _load_status(self) -> Status:
+    def _validate_slowmode_info(self, info: Any) -> bool:
+        """Validasi format info slowmode."""
+        if not isinstance(info, dict):
+            return False
+        duration: Any = info.get("duration")
+        expires_at: Any = info.get("expires_at")
+        if not isinstance(duration, int | float):
+            return False
+        if not isinstance(expires_at, int | float):
+            return False
+        return True
+
+    def _validate_status_data(self, data: dict[str, Any]) -> StatusData:
+        """Validasi dan konversi data status."""
+        try:
+            # Validasi blacklist
+            blacklist: Any = data.get("blacklist", {})
+            if not isinstance(blacklist, dict):
+                raise StatusError("Format blacklist tidak valid")
+            if not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in blacklist.items()
+            ):
+                raise StatusError("Format data blacklist tidak valid")
+
+            # Validasi slowmode
+            slowmode: Any = data.get("slowmode", {})
+            if not isinstance(slowmode, dict):
+                raise StatusError("Format slowmode tidak valid")
+            if not all(
+                isinstance(k, str) and self._validate_slowmode_info(v)
+                for k, v in slowmode.items()
+            ):
+                raise StatusError("Format data slowmode tidak valid")
+
+            # Validasi last_updated
+            last_updated: Any = data.get("last_updated", time.time())
+            if not isinstance(last_updated, int | float):
+                last_updated = time.time()
+
+            return cast(
+                StatusData,
+                {
+                    "blacklist": blacklist,
+                    "slowmode": slowmode,
+                    "last_updated": last_updated,
+                },
+            )
+
+        except (TypeError, KeyError) as e:
+            raise StatusError(f"Format data tidak valid: {e}") from e
+
+    def _load_status(self) -> None:
         """Load status dari file."""
         try:
-            # Load groups dan messages
-            groups = self._load_groups()
-            messages = self._load_messages()
+            if not STATUS_FILE.exists():
+                logger.warning("⚠️ File status tidak ditemukan, menggunakan default")
+                self.save()  # Create file with default data
+                return
 
-            # Load atau buat status.json
-            if STATUS_FILE.exists():
-                with open(STATUS_FILE, encoding="utf-8") as f:
-                    data = json.load(f)
-                    status = _validate_status(data)
-                    # Update dengan groups dan messages terbaru
-                    status["groups"] = groups
-                    status["messages"] = messages
-                    return status
+            json_data: str = STATUS_FILE.read_text()
+            data: dict[str, Any] = json.loads(json_data)
 
-            # Status default jika file belum ada
-            return {
-                "groups": groups,
-                "messages": messages,
-                "blacklist": {},
-                "slowmode": {},
-                "flood_wait_history": [],
-            }
+            # Validate and convert data
+            self._status = self._validate_status_data(data)
+            logger.info("✅ Berhasil load status")
 
+        except json.JSONDecodeError as e:
+            logger.error("❌ File status corrupt: %s", str(e))
+            self._status = DEFAULT_STATUS.copy()
+            self.save()  # Overwrite corrupt file
+        except StatusError as e:
+            logger.error("❌ %s", str(e))
+            self._status = DEFAULT_STATUS.copy()
+            self.save()  # Overwrite invalid file
         except Exception as e:
-            logger.error("❌ Error load status: %s", str(e))
-            raise StatusError("Gagal load status") from e
+            logger.error("❌ Error saat load status: %s", str(e))
+            self._status = DEFAULT_STATUS.copy()
+            self.save()  # Overwrite problematic file
 
-    def _save_status(self) -> None:
-        """Simpan status ke file."""
+    def _load_groups(self) -> None:
+        """Load daftar grup dari groups.txt."""
         try:
-            with open(STATUS_FILE, "w", encoding="utf-8") as f:
-                json.dump(self._status, f, indent=2)
+            if not GROUPS_FILE.exists():
+                raise StatusError("File groups.txt tidak ditemukan")
+
+            self._groups = GROUPS_FILE.read_text().strip().splitlines()
+            logger.info("✅ Berhasil load %d grup", len(self._groups))
+
         except Exception as e:
-            logger.error("❌ Error save status: %s", str(e))
+            raise StatusError(f"Error saat load groups: {e}") from e
 
     def get_active_groups(self) -> list[str]:
-        """Ambil daftar grup yang aktif."""
-        # Selalu cleanup sebelum mengambil grup aktif
-        self._cleanup()
-
-        current_time = time.time()
-        active = [
+        """Get list grup aktif (non-blacklist & non-slowmode)."""
+        return [
             group
-            for group in self._status["groups"]
+            for group in self._groups
             if group not in self._status["blacklist"]
-            and (
-                group not in self._status["slowmode"]
-                or self._status["slowmode"][group]["expires_at"] <= current_time
-            )
+            and group not in self._status["slowmode"]
         ]
 
-        # Log status setelah cleanup
-        logger.info(
-            "📊 Status grup: %d total, %d blacklist, %d slowmode, %d aktif",
-            len(self._status["groups"]),
-            len(self._status["blacklist"]),
-            len(self._status["slowmode"]),
-            len(active),
-        )
-        return active
+    def get_groups(self) -> list[str]:
+        """Get list grup."""
+        return self._groups.copy()
 
-    def add_slowmode(self, group: str, duration: int) -> None:
-        """Add group to slowmode."""
-        self._status["slowmode"][group] = {
-            "duration": duration,
-            "expires_at": time.time() + duration,
-        }
-        self._save_status()
-        logger.info("⏳ %s: Slowmode %d detik", group, duration)
+    def get_blacklist(self) -> dict[str, str]:
+        """Get dict blacklist."""
+        return self._status["blacklist"]
+
+    def get_slowmode(self) -> dict[str, SlowmodeInfo]:
+        """Get dict slowmode."""
+        return self._status["slowmode"]
+
+    def save(self) -> None:
+        """Save status ke file."""
+        try:
+            self._status["last_updated"] = time.time()
+            json_data: str = json.dumps(self._status, indent=2)
+            STATUS_FILE.write_text(json_data)
+        except Exception as e:
+            raise StatusError(f"Error saat save status: {e}") from e
 
     def add_to_blacklist(self, group: str, reason: str) -> None:
-        """Tambahkan grup ke blacklist."""
-        if group not in self._status["blacklist"]:
-            self._status["blacklist"][group] = reason
-            self._save_status()
-            logger.info("⛔ %s: Blacklist - %s", group, reason)
+        """Tambah grup ke blacklist."""
+        if group in self._status["blacklist"]:
+            return  # Skip jika sudah di blacklist
+        self._status["blacklist"][group] = reason
+        self.save()
 
-    def get_random_message(self) -> str:
-        """Ambil pesan secara acak dari daftar template."""
-        messages = self._status["messages"]
-        if not messages:
-            raise StatusError("Tidak ada template pesan tersedia")
-        return random.choice(messages)
-
-    def should_pause_globally(self) -> bool:
-        """Cek apakah perlu pause global."""
-        current_time = time.time()
-        recent_floods = [
-            t
-            for t, _ in self._status["flood_wait_history"]
-            if current_time - t < 3600  # 1 jam
-        ]
-        return len(recent_floods) >= 3
-
-    def get_backoff_delay(self, retry: int) -> float:
-        """Get exponential backoff delay."""
-        return float(2**retry)  # 1, 2, 4 seconds
-
-    def add_flood_wait(self, seconds: int) -> None:
-        """Catat FloodWait ke history."""
-        current_time = time.time()
-        self._status["flood_wait_history"].append((current_time, seconds))
-        self._save_status()  # Langsung save tanpa cleanup
-
-    def _cleanup(self) -> None:
-        """Bersihkan data yang expired."""
-        current_time = time.time()
-        changes = False
-
-        # Cleanup slowmode
-        before_slowmode = len(self._status["slowmode"])
-        self._status["slowmode"] = {
-            group: info
-            for group, info in self._status["slowmode"].items()
-            if info["expires_at"] > current_time
+    def add_slowmode(self, group: str, duration: float) -> None:
+        """Tambah grup ke slowmode."""
+        if group in self._status["slowmode"]:
+            return  # Skip jika sudah di slowmode
+        expires_at: float = time.time() + duration
+        self._status["slowmode"][group] = {
+            "duration": duration,
+            "expires_at": expires_at,
         }
-        after_slowmode = len(self._status["slowmode"])
+        self.save()
 
-        # Cleanup flood history
-        before_flood = len(self._status["flood_wait_history"])
-        self._status["flood_wait_history"] = [
-            (t, s)
-            for t, s in self._status["flood_wait_history"]
-            if current_time - t < 3600  # 1 jam
+    def cleanup_expired_slowmode(self) -> None:
+        """Hapus slowmode yang sudah expired."""
+        now: float = time.time()
+        expired: list[str] = [
+            group
+            for group, info in self._status["slowmode"].items()
+            if info["expires_at"] <= now
         ]
-        after_flood = len(self._status["flood_wait_history"])
 
-        # Log dan save hanya jika ada perubahan
-        if before_slowmode != after_slowmode:
-            logger.info(
-                "🧹 Cleanup %d slowmode yang expired", before_slowmode - after_slowmode
-            )
-            changes = True
+        for group in expired:
+            del self._status["slowmode"][group]
+            logger.info("✅ Slowmode untuk grup %s telah berakhir", group)
 
-        if before_flood != after_flood:
-            logger.info(
-                "🧹 Cleanup %d flood history yang expired", before_flood - after_flood
-            )
-            changes = True
-
-        if changes:
-            self._save_status()
-
-    def _load_messages(self) -> list[str]:
-        """Load template pesan dari folder messages/."""
-        messages_dir = DATA_DIR / "messages"
-        messages: list[str] = []
-
-        try:
-            # Load semua file .txt dari folder messages/
-            for file in messages_dir.glob("*.txt"):
-                try:
-                    content = file.read_text(encoding="utf-8").strip()
-                    if content:
-                        messages.append(content)
-                except Exception as e:
-                    logger.error("❌ Error load template %s: %s", file.name, str(e))
-
-            if not messages:
-                raise StatusError("Tidak ada template pesan tersedia")
-
-            return messages
-
-        except Exception as e:
-            logger.error("❌ Error load templates: %s", str(e))
-            raise StatusError("Gagal load template pesan") from e
-
-    def _load_groups(self) -> list[str]:
-        """Load daftar grup dari groups.txt."""
-        groups_file = DATA_DIR / "groups.txt"
-        try:
-            content = groups_file.read_text(encoding="utf-8")
-            groups = [line.strip() for line in content.splitlines() if line.strip()]
-
-            if not groups:
-                raise StatusError("File groups.txt kosong")
-
-            return groups
-
-        except Exception as e:
-            logger.error("❌ Error load groups: %s", str(e))
-            raise StatusError("Gagal load daftar grup") from e
+        if expired:
+            self.save()

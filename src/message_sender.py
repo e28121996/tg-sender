@@ -2,127 +2,143 @@
 
 import asyncio
 import random
-from collections.abc import Sequence
+from typing import Final
 
-from .exceptions import FloodWaitError, SlowModeError
+from .config import MESSAGES_DIR
+from .exceptions import TelegramError
 from .logger import setup_logger
 from .status_manager import StatusManager
 from .telegram_client import TelegramClient
+from .types import MessageSenderProtocol
 
-logger = setup_logger(__name__)
+logger = setup_logger(name=__name__)
+
+# Konstanta untuk pengiriman pesan
+BATCH_SIZE: Final[int] = 4  # Jumlah pesan per batch
+MESSAGE_DELAY: Final[tuple[int, int]] = (2, 6)  # Interval 4±2 detik
+MAX_ERROR_LENGTH: Final[int] = 200  # Panjang maksimal pesan error
 
 
-class MessageSender:
-    """Kelas untuk mengirim pesan ke grup."""
+class MessageSender(MessageSenderProtocol):
+    """Class untuk mengirim pesan ke grup."""
 
-    def __init__(
-        self,
-        client: TelegramClient,
-        status_manager: "StatusManager",
-    ) -> None:
-        """Inisialisasi MessageSender."""
+    def __init__(self, client: TelegramClient, status: StatusManager) -> None:
+        """Inisialisasi message sender.
+
+        Args:
+            client: Instance TelegramClient
+            status: Instance StatusManager
+        """
         self.client = client
-        self.status = status_manager
-        self.batch_size = 4
-        self.intra_delay = (2.0, 6.0)
-        self.inter_delay = (13.0, 17.0)
+        self.status = status
+        self._templates: list[str] = []
+        self._load_templates()
 
-    def _create_batches(self, groups: list[str]) -> list[list[str]]:
-        """Bagi grup menjadi batch."""
-        return [
-            groups[i : i + self.batch_size]
-            for i in range(0, len(groups), self.batch_size)
-        ]
+    def _load_templates(self) -> None:
+        """Load template pesan dari folder messages.
 
-    async def _process_batch(
-        self, batch: Sequence[str], messages: list[str]
-    ) -> tuple[int, int, int]:
-        """Proses satu batch pengiriman."""
-        success = 0
-        failed = 0
-        slowmode = 0
-        retry = 0
+        Raises:
+            TelegramError: Jika tidak ada template yang valid
+        """
+        try:
+            # Validasi folder template
+            if not MESSAGES_DIR.exists() or not MESSAGES_DIR.is_dir():
+                raise TelegramError(f"Folder {MESSAGES_DIR} tidak valid")
 
-        for group in batch:
+            # Load semua file .txt
+            message_files = list(MESSAGES_DIR.glob("*.txt"))
+            if not message_files:
+                raise TelegramError("Tidak ada template pesan")
+
+            # Load isi file
+            for file in message_files:
+                content = file.read_text().strip()
+                if content:
+                    self._templates.append(content)
+
+            if not self._templates:
+                raise TelegramError("Semua template pesan kosong")
+
+            logger.info("✅ Berhasil load %d template pesan", len(self._templates))
+
+        except Exception as e:
+            raise TelegramError(f"Error saat load template: {e}") from e
+
+    def get_random_template(self) -> str:
+        """Get template pesan random.
+
+        Returns:
+            str: Template pesan yang dipilih secara random
+
+        Raises:
+            TelegramError: Jika tidak ada template pesan
+        """
+        if not self._templates:
+            raise TelegramError("Tidak ada template pesan")
+        return random.choice(self._templates)
+
+    async def send_batch(self, groups: list[str]) -> None:
+        """Kirim pesan ke batch grup."""
+        if not groups:
+            return  # Skip jika tidak ada grup
+
+        success: int = 0
+        failed: int = 0
+
+        for group in groups:
             try:
-                if self.status.should_pause_globally():
-                    logger.warning("⏳ Pause global karena terlalu banyak FloodWait")
-                    failed += len(batch) - (success + failed + slowmode)
-                    break
-
-                # Pilih pesan random untuk setiap grup
-                message = random.choice(messages)
-                await self.client.send_message(group, message)
+                # Pilih template random untuk setiap grup
+                template: str = self.get_random_template()
+                await self.send_message(group, template)
                 success += 1
 
-                if group != batch[-1]:
-                    delay = random.uniform(*self.intra_delay)
+                # Delay hanya jika masih ada grup berikutnya
+                if group != groups[-1]:
+                    delay: float = random.uniform(MESSAGE_DELAY[0], MESSAGE_DELAY[1])
                     await asyncio.sleep(delay)
 
-            except SlowModeError:
-                slowmode += 1
-                continue
-
-            except FloodWaitError:
-                if retry >= 3:
-                    logger.error("❌ Maksimal retry tercapai")
-                    failed += len(batch) - (success + failed + slowmode)
-                    break
-
-                delay = self.status.get_backoff_delay(retry)
-                logger.warning("⏳ Retry ke-%d dalam %0.1f detik", retry + 1, delay)
-                await asyncio.sleep(delay)
-                retry += 1
-                continue
-
-            except Exception as e:
+            except TelegramError as e:
                 failed += 1
-                logger.error("❌ %s: %s", group, str(e))
-                continue
+                error_msg = self._format_error_message(str(e))
+                logger.error("❌ Error saat kirim ke %s: %s", group, error_msg)
 
-        return success, failed, slowmode
+        logger.info("📊 Hasil batch - Sukses: %d, Gagal: %d", success, failed)
 
-    async def send_messages_in_batches(self, groups: Sequence[str]) -> None:
-        """Kirim pesan ke grup dalam batch."""
-        if not groups:
-            logger.warning("⚠️ Tidak ada grup untuk dikirim")
-            return
+    async def send_message(self, chat: str, message: str) -> None:
+        """Kirim pesan ke grup.
 
-        batches = self._create_batches(list(groups))
-        total_success = 0
-        total_failed = 0
-        total_slowmode = 0
+        Args:
+            chat: ID atau username grup
+            message: Pesan yang akan dikirim
 
-        logger.info(
-            "📨 Mulai pengiriman ke %d grup (%d batch)",
-            len(groups),
-            len(batches),
-        )
+        Raises:
+            TelegramError: Jika ada error saat mengirim pesan
+        """
+        try:
+            await self.client.send_message(chat, message)
+            logger.info("✅ Berhasil kirim pesan ke %s", chat)
 
-        for i, batch in enumerate(batches, 1):
-            try:
-                # Ambil daftar pesan untuk batch ini
-                messages = [self.status.get_random_message() for _ in range(len(batch))]
-                logger.info("📨 Batch %d/%d (%d grup)", i, len(batches), len(batch))
+        except TelegramError as e:
+            error_msg = self._format_error_message(str(e))
+            raise TelegramError(f"Error saat kirim pesan: {error_msg}") from e
 
-                success, failed, slowmode = await self._process_batch(batch, messages)
-                total_success += success
-                total_failed += failed
-                total_slowmode += slowmode
+    def _format_error_message(self, error: str) -> str:
+        """Format pesan error agar konsisten dan tidak terpotong."""
+        # Ekstrak error type dan detail
+        parts = error.split(":", 1)
+        error_type = parts[0].strip()
+        error_detail = parts[1].strip() if len(parts) > 1 else ""
 
-                if i < len(batches):
-                    delay = random.uniform(*self.inter_delay)
-                    logger.info("⏳ Jeda %0.1f detik", delay)
-                    await asyncio.sleep(delay)
+        # Format pesan error
+        if error_detail:
+            full_message = f"{error_type}: {error_detail}"
+        else:
+            full_message = error_type
 
-            except Exception as e:
-                logger.error("❌ Error batch %d: %s", i, str(e))
-                total_failed += len(batch)
+        # Truncate jika terlalu panjang
+        if len(full_message) > MAX_ERROR_LENGTH:
+            return (
+                f"{error_type}: {error_detail[:MAX_ERROR_LENGTH-len(error_type)-5]}..."
+            )
 
-        logger.info(
-            "✅ Selesai: %d sukses, %d gagal (slowmode: %d, blacklist: %d)",
-            total_success,
-            total_failed,
-            total_slowmode + len(self.status._status["slowmode"]),
-            len(self.status._status["blacklist"]),
-        )
+        return full_message
