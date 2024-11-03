@@ -1,17 +1,34 @@
 # Main configuration
-run = "python3 run.py"
+run = "python3 main.py"
+entrypoint = "main.py"
 language = "python3"
-entrypoint = "run.py"
 
-# Nix configuration
-[nix]
-channel = "stable-23_05"
+# Modules configuration
+modules = ["python-3.10:v18-20230807-322e88b"]
 
 # Environment variables
 [env]
 PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
 PYTHONUNBUFFERED = "1"
 
-# Web server configuration
+# Nix configuration
+[nix]
+channel = "stable-23_05"
+
+# Packager configuration
+[packager]
+language = "python3"
+
+[packager.features]
+enabledForHosting = true
+packageSearch = true
+guessImports = true
+
+# Deployment configuration 
+[deployment]
+run = ["python3", "main.py"]
+deploymentTarget = "cloudrun"
+
+# Keep alive web server configuration
 [webview]
 port = 8080
