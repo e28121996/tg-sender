@@ -3,6 +3,12 @@
 # Level 1 - Core
 from .bot_runner import BotRunner
 from .config import CONFIG, DATA_DIR, GROUPS_FILE, MESSAGES_DIR
+from .custom_types import (
+    MessageSenderProtocol,
+    SlowmodeInfo,
+    StatusData,
+    StatusManagerProtocol,
+)
 from .exceptions import AuthError, ConfigError, StatusError, TelegramError
 from .keep_alive import keep_alive
 from .logger import setup_logger
@@ -13,12 +19,6 @@ from .status_manager import StatusManager
 
 # Level 2 - Services
 from .telegram_client import TelegramClient
-from .types import (
-    MessageSenderProtocol,
-    SlowmodeInfo,
-    StatusData,
-    StatusManagerProtocol,
-)
 
 __all__ = [
     # Core

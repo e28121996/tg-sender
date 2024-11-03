@@ -64,7 +64,6 @@ class BotRunner:
                     i // BATCH_SIZE + 1,
                     -(-len(active_groups) // BATCH_SIZE),
                 )
-
                 await self.sender.send_batch(batch)
 
                 if i + BATCH_SIZE < len(active_groups):

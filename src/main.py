@@ -6,11 +6,11 @@ import sys
 from datetime import datetime, timedelta
 from typing import Final
 
-from .bot_runner import BotRunner
-from .config import DATA_DIR, GROUPS_FILE, MESSAGES_DIR
-from .exceptions import AuthError, ConfigError
-from .keep_alive import keep_alive
-from .logger import setup_logger
+from src.bot_runner import BotRunner
+from src.config import DATA_DIR, GROUPS_FILE, MESSAGES_DIR
+from src.exceptions import AuthError, ConfigError
+from src.keep_alive import keep_alive
+from src.logger import setup_logger
 
 logger = setup_logger(name=__name__)
 

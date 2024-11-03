@@ -5,11 +5,11 @@ import random
 from typing import Final
 
 from .config import MESSAGES_DIR
+from .custom_types import MessageSenderProtocol
 from .exceptions import TelegramError
 from .logger import setup_logger
 from .status_manager import StatusManager
 from .telegram_client import TelegramClient
-from .types import MessageSenderProtocol
 
 logger = setup_logger(name=__name__)
 

@@ -6,7 +6,6 @@ from typing import Final, cast
 from telethon.errors import (
     ChannelPrivateError,
     ChatAdminRequiredError,
-    ChatGuestSendForbiddenError,
     ChatRestrictedError,
     ChatWriteForbiddenError,
     FloodWaitError,
@@ -23,9 +22,9 @@ from telethon.sessions import StringSession
 from telethon.sync import TelegramClient as BaseTelegramClient
 
 from .config import CONFIG
+from .custom_types import TelegramClientProtocol
 from .exceptions import AuthError, TelegramError
 from .logger import setup_logger
-from .types import TelegramClientProtocol
 
 logger = setup_logger(name=__name__)
 
@@ -52,7 +51,7 @@ class TelegramClient(TelegramClientProtocol):
                 session,
                 api_id,
                 api_hash,
-                timeout=CONNECT_TIMEOUT,  # Tambah timeout
+                timeout=CONNECT_TIMEOUT,
             )
             await client.connect()
 
@@ -108,7 +107,6 @@ class TelegramClient(TelegramClientProtocol):
             UsernameInvalidError,
             UsernameNotOccupiedError,
             ChatRestrictedError,
-            ChatGuestSendForbiddenError,
             PeerIdInvalidError,
             MessageTooLongError,
             MessageNotModifiedError,

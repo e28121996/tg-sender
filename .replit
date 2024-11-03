@@ -1,8 +1,7 @@
 # Main configuration
-run = "python3 src/main.py"
+run = "python3 run.py"
 language = "python3"
-entrypoint = "src/main.py"
-modules = ["python-3.10:v18-20230807-322e88b"]
+entrypoint = "run.py"
 
 # Nix configuration
 [nix]
@@ -16,33 +15,3 @@ PYTHONUNBUFFERED = "1"
 # Web server configuration
 [webview]
 port = 8080
-
-# Language configuration
-[languages]
-
-[languages.python]
-pattern = "**/*.py"
-syntax = "python"
-
-[languages.python.languageServer]
-start = ["pylsp"]
-
-# Files to hide
-hidden = [
-  ".config",
-  "**/__pycache__",
-  "**/.pytest_cache", 
-  "**/*.pyc"
-]
-
-# Package management
-[packager]
-language = "python3"
-
-[packager.features]
-packageSearch = true
-guessImports = true
-
-# Hosting configuration
-[hosting]
-route = "/"

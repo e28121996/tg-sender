@@ -11,7 +11,7 @@ from .logger import setup_logger
 logger = setup_logger(name=__name__)
 
 # Konstanta
-HOST: Final[str] = "127.0.0.1"
+HOST: Final[str] = "0.0.0.0"  # noqa: S104
 PORT: Final[int] = 8080
 
 # Setup Flask dengan logging minimal

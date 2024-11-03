@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 from .config import DATA_DIR, GROUPS_FILE
+from .custom_types import SlowmodeInfo, StatusData, StatusManagerProtocol
 from .exceptions import StatusError
 from .logger import setup_logger
-from .types import SlowmodeInfo, StatusData, StatusManagerProtocol
 
 logger = setup_logger(name=__name__)
 
