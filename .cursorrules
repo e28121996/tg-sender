@@ -117,23 +117,3 @@
 1. Disconnect Telegram client
 2. Clear resources
 3. Exit program
-
-@__init__.py @keep_alive.py @logger.py @main.py @config.py @message_sender.py @bot_runner.py @status_manager.py @telegram_client.py @exceptions.py @types.py @Ruff Rules @Mypy Docs @Codebase 
-
-Level 1 (Core):
-- exceptions.py (base exceptions)
-- logger.py (logging setup)
-- types.py (type definitions)
-- config.py (configuration)
-
-Level 2 (Services):
-- telegram_client.py (depends on: exceptions, logger, config)
-- status_manager.py (depends on: exceptions, logger, types)
-- keep_alive.py (depends on: logger)
-
-Level 3 (Business Logic):
-- message_sender.py (depends on: telegram_client, status_manager, exceptions, logger)
-- bot_runner.py (depends on: message_sender, telegram_client, status_manager)
-
-Level 4 (Entry Point):
-- main.py (depends on: bot_runner, keep_alive)
