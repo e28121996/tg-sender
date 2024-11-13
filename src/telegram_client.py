@@ -1,128 +1,194 @@
 """Modul untuk interaksi dengan Telegram."""
 
 import asyncio
-from typing import Final, cast
+from typing import Any, Final, TypeAlias
 
+from telethon import TelegramClient as BaseTelegramClient
 from telethon.errors import (
     ChannelPrivateError,
     ChatAdminRequiredError,
     ChatRestrictedError,
     ChatWriteForbiddenError,
-    FloodWaitError,
-    MessageNotModifiedError,
-    MessageTooLongError,
-    PeerIdInvalidError,
-    SlowModeWaitError,
+    ForbiddenError,
     UnauthorizedError,
     UserBannedInChannelError,
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
 from telethon.sessions import StringSession
-from telethon.sync import TelegramClient as BaseTelegramClient
 
 from .config import CONFIG
 from .custom_types import TelegramClientProtocol
 from .exceptions import AuthError, TelegramError
-from .logger import setup_logger
+from .logger import (
+    setup_logger,
+)
+from .status_manager import StatusManager
 
 logger = setup_logger(name=__name__)
 
-# Tambah konstanta timeout
-CONNECT_TIMEOUT: Final[int] = 30  # 30 detik
-SEND_TIMEOUT: Final[int] = 15  # 15 detik
+# Konstanta timeout dan durasi
+CONNECT_TIMEOUT: Final[int] = 30
+SEND_TIMEOUT: Final[int] = 15
+SECONDS_PER_MINUTE: Final[int] = 60
+
+# Type alias untuk client
+TelethonClient: TypeAlias = Any  # noqa: UP040
+
+
+def _raise_auth_error(error: str, original_error: Exception | None = None) -> None:
+    """Raise auth error."""
+    if original_error:
+        raise AuthError(error) from original_error
+    raise AuthError(error) from None
+
+
+def _raise_telegram_error(error: str, original_error: Exception | None = None) -> None:
+    """Raise telegram error."""
+    if original_error:
+        raise TelegramError(error) from original_error
+    raise TelegramError(error) from None
 
 
 class TelegramClient(TelegramClientProtocol):
-    """Wrapper untuk Telethon client."""
+    """Class untuk interaksi dengan Telegram."""
 
-    def __init__(self) -> None:
-        """Inisialisasi client."""
-        self._client: BaseTelegramClient | None = None
+    def __init__(self, status_manager: StatusManager) -> None:
+        """Initialize telegram client."""
+        api_id = int(CONFIG["API_ID"])
+        self._client: TelethonClient = BaseTelegramClient(
+            StringSession(CONFIG["SESSION_STRING"]),
+            api_id,
+            CONFIG["API_HASH"],
+        )
+        self.status = status_manager
+
+    def _validate_client(self) -> TelethonClient:
+        """Validasi client sudah diinisialisasi."""
+        if self._client is None:
+            _raise_telegram_error(TelegramError.CLIENT_UNINITIALIZED)
+        return self._client
 
     async def connect(self) -> None:
-        """Connect dan validasi session."""
-        try:
-            session: StringSession = StringSession(CONFIG["SESSION_STRING"])
-            api_id: int = int(CONFIG["API_ID"])
-            api_hash: str = CONFIG["API_HASH"]
+        """Connect ke Telegram."""
+        retries = 3
+        retry_delay = 5  # seconds
+        last_error = None
 
-            client: BaseTelegramClient = BaseTelegramClient(
-                session,
-                api_id,
-                api_hash,
-                timeout=CONNECT_TIMEOUT,
-            )
-            await client.connect()
+        for attempt in range(retries):
+            try:
+                client = self._validate_client()
 
-            if not await client.is_user_authorized():
-                await self.disconnect()
-                raise AuthError("Session string tidak valid")
+                # Tambah timeout yang lebih lama
+                await asyncio.wait_for(
+                    client.connect(),
+                    timeout=30.0,  # 30 detik timeout
+                )
 
-            self._client = client
-            logger.info("✅ Berhasil connect ke Telegram")
+                if not await client.is_user_authorized():
+                    _raise_auth_error(AuthError.SESSION_INVALID)
 
-        except UnauthorizedError as e:
-            await self.disconnect()
-            raise AuthError("Session string tidak valid") from e
-        except Exception as e:
-            connect_error: str = str(e)
-            await self.disconnect()
-            raise TelegramError(f"Error saat connect: {connect_error}") from e
+            except UnauthorizedError as e:
+                _raise_auth_error(AuthError.AUTH_FAILED.format(str(e)), e)
+
+            except TimeoutError:
+                last_error = "Connection timeout"
+                if attempt < retries - 1:
+                    logger.warning(
+                        f"⚠️ Connect timeout (attempt {attempt + 1}/{retries}), "
+                        f"retry dalam {retry_delay}s..."
+                    )
+                    await asyncio.sleep(retry_delay)
+                continue
+
+            except Exception as e:
+                last_error = str(e)
+                if attempt < retries - 1:
+                    logger.warning(
+                        f"⚠️ Connect error (attempt {attempt + 1}/{retries}): {e}, "
+                        f"retry dalam {retry_delay}s..."
+                    )
+                    await asyncio.sleep(retry_delay)
+                continue
+            else:
+                logger.info("✅ Berhasil connect ke Telegram")
+                return
+
+        # Jika semua retry gagal
+        raise TelegramError.connect_error(last_error or "Unknown error")
 
     async def disconnect(self) -> None:
         """Disconnect dari Telegram."""
-        if self._client:
-            try:
-                await self._client.disconnect()
-                logger.info("✅ Berhasil disconnect dari Telegram")
-            except Exception as e:
-                disconnect_error: str = str(e)
-                logger.error("❌ Error saat disconnect: %s", disconnect_error)
-            finally:
-                self._client = None
-
-    def _validate_client(self) -> None:
-        """Validasi client sudah diinisialisasi."""
-        if not self._client:
-            raise TelegramError("Client belum diinisialisasi")
+        try:
+            client = self._validate_client()
+            result = client.disconnect()
+            if result is not None:
+                await result
+        except Exception:
+            logger.exception("Error saat disconnect")
 
     async def send_message(self, chat: str, message: str) -> None:
         """Kirim pesan ke grup."""
-        self._validate_client()
-        client = cast(BaseTelegramClient, self._client)
-
         try:
-            await asyncio.wait_for(
-                client.send_message(chat, message), timeout=SEND_TIMEOUT
-            )
-        except TimeoutError as err:
-            raise TelegramError(f"Timeout setelah {SEND_TIMEOUT} detik") from err
+            client = self._validate_client()
+            entity = await client.get_entity(chat)
+            await asyncio.wait_for(client.send_message(entity, message), SEND_TIMEOUT)
 
-        except (
-            ChatWriteForbiddenError,
-            UserBannedInChannelError,
-            ChannelPrivateError,
-            ChatAdminRequiredError,
-            UsernameInvalidError,
-            UsernameNotOccupiedError,
-            ChatRestrictedError,
-            PeerIdInvalidError,
-            MessageTooLongError,
-            MessageNotModifiedError,
-            ValueError,
-        ) as err:
-            permission_error: str = str(err)
-            raise TelegramError(f"Permission error: {permission_error}") from err
+        except Exception as e:
+            error_str = str(e).lower()
 
-        except SlowModeWaitError as err:
-            slowmode_duration: float = float(err.seconds)
-            raise TelegramError(f"Slowmode error: {slowmode_duration}") from err
+            # Deteksi slowmode harus lebih spesifik
+            slowmode_patterns = [
+                r"slow[\s_-]*mode.*?(\d+)",  # slow mode, slowmode
+                r"wait.*?(\d+).*?second",  # wait X seconds
+                r"flood.*?(\d+)",  # flood wait X
+                r"too fast.*?(\d+)",  # too fast, wait X
+                r"retry in (\d+)",  # retry in X seconds
+            ]
 
-        except FloodWaitError as err:
-            flood_duration: float = float(err.seconds)
-            raise TelegramError(f"Flood wait error: {flood_duration}") from err
+            import re
 
-        except Exception as err:
-            send_error: str = str(err)
-            raise TelegramError(f"Send error: {send_error}") from err
+            for pattern in slowmode_patterns:
+                if match := re.search(pattern, error_str):
+                    duration = float(match.group(1))
+                    logger.warning(
+                        f"⏳ {chat} - SLOWMODE {self._format_duration(int(duration))}"
+                    )
+                    self.status.add_slowmode(chat, duration)
+                    return
+
+            # Jika bukan slowmode, handle error lainnya
+            if isinstance(e, UsernameNotOccupiedError | UsernameInvalidError):
+                logger.warning(f"⛔ {chat} - USERNAME_INVALID")
+                self.status.add_to_blacklist(chat, "USERNAME_INVALID")
+                raise TelegramError("USERNAME_INVALID") from None
+
+            if isinstance(
+                e,
+                ChatWriteForbiddenError
+                | UserBannedInChannelError
+                | ChannelPrivateError
+                | ChatAdminRequiredError
+                | ChatRestrictedError
+                | ForbiddenError,
+            ):
+                error_type = e.__class__.__name__.replace("Error", "").upper()
+                logger.warning(f"⛔ {chat} - {error_type}")
+                self.status.add_to_blacklist(chat, error_type)
+                raise TelegramError(error_type) from None
+
+            # Error lainnya yang tidak teridentifikasi
+            logger.warning(f"⛔ {chat} - SEND_ERROR")
+            self.status.add_to_blacklist(chat, "SEND_ERROR")
+            raise TelegramError("SEND_ERROR") from None
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format durasi dalam format yang konsisten."""
+        seconds_int = int(seconds)
+        if seconds_int < SECONDS_PER_MINUTE:
+            return f"{seconds_int}s"
+        minutes = seconds_int // SECONDS_PER_MINUTE
+        hours = minutes // 60
+        if hours > 0:
+            return f"{hours}h {minutes % 60}m"
+        return f"{minutes}m"

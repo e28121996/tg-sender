@@ -1,21 +1,37 @@
-"""Web server untuk keep-alive."""
+"""Web server untuk keep-alive di Replit."""
 
 from threading import Thread
-from typing import Final
+from typing import Any, Final
 
 from flask import Flask
+from werkzeug.serving import WSGIRequestHandler
 
 from .logger import setup_logger
 
-# Setup logger
 logger = setup_logger(name=__name__)
 
 # Konstanta
-HOST: Final[str] = "0.0.0.0"  # noqa: S104
+HOST: Final[str] = "0.0.0.0"
 PORT: Final[int] = 8080
 
-# Setup Flask dengan logging minimal
 app = Flask(__name__)
+
+
+class CustomWSGIRequestHandler(WSGIRequestHandler):
+    """Custom WSGI request handler that disables request logging."""
+
+    def log_request(self, *args: Any, **kwargs: Any) -> None:
+        """Override log_request to disable request logging.
+
+        Args:
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+        """
+        pass
+
+
+# Use custom handler
+app.config["REQUEST_HANDLER"] = CustomWSGIRequestHandler
 
 
 @app.route("/")
@@ -25,34 +41,30 @@ def home() -> str:
 
 
 def run() -> None:
-    """Run Flask server dengan error handling."""
+    """Run Flask server untuk Replit."""
     try:
-        # Disable Flask internal logging
+        # Disable all Flask logging
         app.logger.disabled = True
+        import logging
 
-        app.run(
-            host=HOST,
-            port=PORT,
-            debug=False,  # Disable debug mode
-            use_reloader=False,  # Disable reloader
-        )
-    except Exception as e:
-        # Log error tapi jangan crash program utama
-        logger.error("❌ Error pada web server: %s", str(e))
+        log = logging.getLogger("werkzeug")
+        log.disabled = True
+
+        app.run(host=HOST, port=PORT, debug=False, use_reloader=False)
+    except Exception:
+        logger.exception("❌ Error pada web server")
+        raise
 
 
 def start_server() -> None:
-    """Start web server untuk keep-alive."""
+    """Start web server untuk keep-alive di Replit."""
     try:
-        server_thread: Thread = Thread(target=run, daemon=True)
+        server_thread = Thread(target=run, daemon=True)
         server_thread.start()
-        logger.info("✅ Web server started on %s:%d", HOST, PORT)
-    except Exception as e:
-        error_msg: str = str(e)
-        logger.error("❌ Error saat start web server: %s", error_msg)
+        logger.info("✅ Web server started on port %d", PORT)
+    except Exception:
+        logger.exception("❌ Error saat start web server")
+        raise
 
 
-# Expose fungsi yang akan digunakan
 keep_alive = start_server
-
-__all__ = ["keep_alive"]

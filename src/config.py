@@ -29,33 +29,34 @@ STATUS_FILE: Final[Path] = DATA_DIR / "status.json"
 def load_config() -> ConfigDict:
     """Load dan validasi konfigurasi dari environment.
 
-    Returns:
-        ConfigDict: Konfigurasi yang sudah divalidasi
-
-    Raises:
-        ConfigError: Jika ada environment variable yang tidak valid
+    Untuk Replit, environment variables diambil dari Secrets tab.
     """
+    # Replit environment variables - menggunakan nama yang sesuai dengan Secrets
+    config: ConfigDict = {
+        "API_ID": os.environ.get("API_ID", ""),  # Sesuai dengan nama di Secrets
+        "API_HASH": os.environ.get("API_HASH", ""),  # Sesuai dengan nama di Secrets
+        "PHONE_NUMBER": os.environ.get(
+            "PHONE_NUMBER", ""
+        ),  # Sesuai dengan nama di Secrets
+        "SESSION_STRING": os.environ.get(
+            "SESSION_STRING", ""
+        ),  # Sesuai dengan nama di Secrets
+    }
+
+    # Validasi
+    missing = [key for key, value in config.items() if not value]
+    if missing:
+        raise ConfigError(f"MISSING_ENV:{','.join(missing)}")
+
+    # Convert API_ID ke integer
     try:
-        config: ConfigDict = {
-            "API_ID": os.getenv("API_ID", ""),
-            "API_HASH": os.getenv("API_HASH", ""),
-            "PHONE_NUMBER": os.getenv("PHONE_NUMBER", ""),
-            "SESSION_STRING": os.getenv("SESSION_STRING", ""),
-        }
+        config["API_ID"] = str(int(config["API_ID"]))  # Pastikan valid integer
+    except ValueError as e:
+        raise ConfigError("INVALID_API_ID") from e
 
-        # Validasi nilai tidak kosong
-        missing = [key for key, value in config.items() if not value]
-        if missing:
-            raise ConfigError(
-                f"Environment variables tidak lengkap: {', '.join(missing)}"
-            )
-
-        logger.info("✅ Konfigurasi berhasil diload")
-        return config
-
-    except Exception as e:
-        raise ConfigError(f"Error saat load konfigurasi: {e}") from e
+    logger.info("✅ Konfigurasi berhasil diload")
+    return config
 
 
-# Load config saat import
+# Export konfigurasi
 CONFIG: Final[ConfigDict] = load_config()

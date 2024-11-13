@@ -20,30 +20,35 @@ MAX_INTERVAL: Final[int] = 4680  # 1.3 jam
 RETRY_DELAY: Final[int] = 300  # 5 menit
 
 
+def _raise_config_error(error: str) -> None:
+    """Raise config error."""
+    raise ConfigError(error)
+
+
 def validate_environment() -> None:
     """Validasi environment dan struktur folder."""
     try:
         # Validasi folder data
         if not DATA_DIR.exists():
-            raise ConfigError("Folder data/ tidak ditemukan")
+            _raise_config_error(ConfigError.MISSING_DATA_DIR)
 
         # Validasi file groups.txt
         if not GROUPS_FILE.exists():
-            raise ConfigError("File groups.txt tidak ditemukan")
+            _raise_config_error(ConfigError.MISSING_GROUPS)
 
         # Validasi folder messages
         if not MESSAGES_DIR.exists() or not MESSAGES_DIR.is_dir():
-            raise ConfigError("Folder messages/ tidak ditemukan")
+            _raise_config_error(ConfigError.MISSING_MESSAGES)
 
         # Validasi template pesan
         message_files = list(MESSAGES_DIR.glob("*.txt"))
         if not message_files:
-            raise ConfigError("Tidak ada template pesan di folder messages/")
+            _raise_config_error(ConfigError.MISSING_TEMPLATES)
 
         logger.info("✅ Validasi environment berhasil")
 
-    except Exception as e:
-        logger.error("❌ Error validasi: %s", str(e))
+    except Exception:
+        logger.exception("❌ Error validasi")
         raise
 
 
@@ -76,17 +81,17 @@ async def run_scheduled() -> None:
 
                 await asyncio.sleep(interval)
 
-            except AuthError as e:
-                logger.error("❌ Error autentikasi: %s", str(e))
+            except AuthError:
+                logger.exception("❌ Error autentikasi")
                 break
 
-            except Exception as e:
-                logger.error("❌ Error saat jalankan bot: %s", str(e))
+            except Exception:
+                logger.exception("❌ Error saat jalankan bot")
                 logger.info("⏳ Mencoba ulang dalam %d detik", RETRY_DELAY)
                 await asyncio.sleep(RETRY_DELAY)
 
-    except Exception as e:
-        logger.error("❌ Error fatal: %s", str(e))
+    except Exception:
+        logger.exception("❌ Error fatal")
         raise
 
 
@@ -96,8 +101,8 @@ def main() -> None:
         asyncio.run(run_scheduled())
     except KeyboardInterrupt:
         logger.info("👋 Bot dihentikan oleh user")
-    except Exception as e:
-        logger.error("❌ Error fatal: %s", str(e))
+    except Exception:
+        logger.exception("❌ Error fatal")
         sys.exit(1)
 
 
