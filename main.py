@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import signal
+import sys
 from typing import NoReturn
 
 from src.core import BotRunner
@@ -24,7 +25,30 @@ def handle_shutdown(bot: BotRunner, loop: asyncio.AbstractEventLoop) -> None:
     if not bot._running:  # Hindari multiple shutdown
         return
     logger.info("Menerima sinyal shutdown...")
-    loop.create_task(bot.stop())
+
+    try:
+        # Batalkan semua task yang sedang berjalan
+        for task in asyncio.all_tasks(loop):
+            if task is not asyncio.current_task():
+                task.cancel()
+
+        # Jalankan shutdown bot
+        loop.create_task(bot.stop())
+
+        # Tunggu semua task selesai
+        loop.run_until_complete(
+            asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
+        )
+
+        # Hentikan event loop
+        loop.stop()
+        loop.close()
+
+    except Exception as e:
+        logger.error("Error saat shutdown: %s", str(e))
+    finally:
+        # Pastikan program benar-benar berhenti
+        sys.exit(0)
 
 
 async def run_bot() -> None:
