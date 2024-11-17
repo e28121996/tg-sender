@@ -3,6 +3,7 @@
 target-version = "py312"
 line-length = 88
 indent-width = 4
+preview = true
 
 # Paths to exclude
 exclude = [
@@ -16,7 +17,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Pindahkan select dan ignore ke dalam section lint
+# Linting rules selection
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings  
@@ -30,39 +31,57 @@ select = [
     "T",   # flake8-print
     "Q",   # flake8-quotes
     "RUF", # Ruff-specific rules
+    "PTH", # use pathlib
     "ERA", # eradicate
     "PL",  # pylint
     "TRY", # tryceratops
-    "SIM", # flake8-simplify
-    "PTH"  # use pathlib
+    "SIM", # simplify
+    "ASYNC", # async/await
+    "DOC",  # pydoclint
+    "S",    # flake8-bandit
+    "ANN",  # flake8-annotations
+    "BLE",  # flake8-blind-except
+    "FBT",  # flake8-boolean-trap
+    "DTZ",  # flake8-datetimez
+    "G",    # flake8-logging-format
 ]
 
 ignore = [
-    "D100",  # Missing docstring in public module
-    "D104",  # Missing docstring in public package
-    "D107",  # Missing docstring in __init__
-    "D203",  # 1 blank line required before class docstring
-    "D213",  # Multi-line docstring summary should start at the second line
-    "E501",  # Line too long (handled by formatter)
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D107", # Missing docstring in __init__
+    "D203", # 1 blank line required before class docstring
+    "D213", # Multi-line docstring summary should start at the second line
+    "E501", # Line too long (handled by formatter)
+    "TRY400", # Use logger.exception()
+    "DOC201", # Missing returns in docstring
+    "DOC501", # Missing exception in docstring
+    "RUF006", # Store asyncio task reference
+    "RUF029", # Unused async
+    "ASYNC100", # Async function missing await
+    "ANN101", # Missing type annotation for self
+    "ANN102", # Missing type annotation for cls
+    "S101",   # Use of assert detected
+    "COM812", # Trailing comma missing
+    "S311",   # Standard pseudo-random generators warning
+    "S104",   # Possible binding to all interfaces
+    "BLE001", # Do not catch blind exception
+    "ANN401", # Dynamically typed expressions (Any) warning
 ]
 
-# Fix settings
-fixable = ["ALL"]
-unfixable = []
-
-# Dummy variable regex
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.mccabe]
-max-complexity = 10
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["src"]
 
 [tool.ruff.lint.pylint]
 max-args = 5
@@ -70,42 +89,55 @@ max-branches = 12
 max-statements = 50
 max-locals = 15
 max-public-methods = 20
+max-returns = 6
+max-bool-expr = 5
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = [
+    "classmethod",
+    "pydantic.validator",
+    "pydantic.root_validator",
+]
+
+[tool.ruff.lint.flake8-builtins]
+builtins-ignorelist = ["id", "type", "format"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+# MyPy settings
 [tool.mypy]
-# Mode strict untuk pengecekan tipe yang ketat
 python_version = "3.12"
 strict = true
 pretty = true
-
-# Error reporting yang lebih baik
 show_column_numbers = true
 show_error_codes = true
 show_error_context = true
-
-# Pengaturan tipe
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = false
+disallow_untyped_decorators = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = true
 warn_unreachable = true
-
-# Pengaturan Any
-disallow_any_unimported = true
+disallow_any_unimported = false
 disallow_any_expr = false
 disallow_any_decorated = false
 disallow_any_explicit = false
 disallow_any_generics = true
 disallow_subclassing_any = true
-
-# Import handling
 ignore_missing_imports = true
 implicit_reexport = true
-
-# Pengaturan khusus untuk tests
-[[tool.mypy.overrides]]
-module = ["tests.*"]
-disallow_untyped_defs = false

@@ -1,4 +1,7 @@
-# Dependencies sudah minimal dan tepat:
-telethon==1.32.1  # Library Telegram yang stabil
-python-dotenv==1.0.0  # Untuk environment variables
-flask==3.0.0  # Untuk keep-alive server
+telethon>=1.32.1
+python-dotenv>=1.0.0Flask>=3.0.0
+requests>=2.31.0
+
+# Development dependencies
+ruff>=0.2.1
+mypy>=1.8.0

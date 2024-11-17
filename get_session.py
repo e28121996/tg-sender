@@ -1,82 +1,50 @@
-"""Script untuk generate session string."""
+"""Script untuk generate session string Telegram."""
 
-import asyncio
 import logging
-import os
-from getpass import getpass
+from typing import cast
 
 from telethon.sessions import StringSession
 from telethon.sync import TelegramClient
 
-# Setup basic logging
-logging.basicConfig(format="%(message)s", level=logging.INFO)
+# Konfigurasi logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 
-def get_input(prompt: str, is_secret: bool = False) -> str:
-    """Get input dengan handling untuk secret."""
-    while True:
-        value = getpass(prompt) if is_secret else input(prompt)
-        if value.strip():
-            return value.strip()
-        logger.error("❌ Input tidak boleh kosong!")
+def get_session() -> str | None:
+    """Membuat dan mengembalikan session string Telegram.
 
+    Returns:
+        str | None: Session string jika berhasil, None jika dibatalkan
+    """
+    # Minta input dari pengguna
+    api_id = int(input("Masukkan API_ID: "))  # Convert ke int
+    api_hash = input("Masukkan API_HASH: ")
+    phone = input("Masukkan nomor telepon: ")
 
-async def main() -> None:
-    """Main function untuk generate session."""
-    logger.info("\n🔑 Generate Session String untuk Bot\n")
+    # Konfirmasi nomor telepon
+    confirm = input(f"Konfirmasi nomor {phone} [y/n]: ")
+    if confirm.lower() != "y":
+        logger.info("Dibatalkan oleh pengguna")
+        return None
 
-    try:
-        # Get credentials
-        api_id = int(get_input("API ID: "))  # Convert ke integer
-        api_hash = get_input("API Hash: ", is_secret=True)
-        phone = get_input("Nomor Telepon (format: +628xxx): ")
+    # Buat client dan dapatkan session string
+    with TelegramClient(StringSession(), api_id, api_hash) as client:
+        client.connect()
+        if not client.is_user_authorized():
+            client.send_code_request(phone)
+            client.sign_in(phone)
 
-        # Create client
-        logger.info("\n📱 Mencoba login ke Telegram...")
-        async with TelegramClient(StringSession(), api_id, api_hash) as client:
-            await client.connect()
+        session_string = cast(str, StringSession.save(client.session))
 
-            # Request kode OTP jika belum login
-            if not await client.is_user_authorized():
-                await client.send_code_request(phone)
-                code = get_input("\n📲 Masukkan kode OTP: ")
-                await client.sign_in(phone, code)
+        logger.info("\nIni session string Anda:")
+        logger.info(session_string)
+        logger.info("\nSimpan string ini dengan aman!")
 
-            # Get session string
-            session_str = client.session.save()
-
-            # Log hasil
-            logger.info("\n✅ Berhasil generate session string!")
-            logger.info("\n⚠️ SIMPAN INFORMASI INI DI REPLIT SECRETS:")
-            logger.info("\nAPI_ID = %s", api_id)  # Sesuai config.py
-            logger.info("API_HASH = %s", api_hash)  # Sesuai config.py
-            logger.info("PHONE_NUMBER = %s", phone)  # Sesuai config.py
-            logger.info("SESSION_STRING = %s", session_str)  # Sesuai config.py
-
-            logger.info("\n📝 LANGKAH SETUP DI REPLIT:")
-            logger.info("1. Buka project di Replit")
-            logger.info("2. Klik Tools > Secrets")
-            logger.info("3. Add secret untuk setiap variabel di atas")
-            logger.info("4. Restart Repl")
-            logger.info("\n🚀 Bot siap dijalankan!")
-
-    except ValueError:
-        logger.info("\n❌ Error: API ID harus berupa angka")
-    except Exception:
-        logger.exception("\n❌ Error saat generate session")
+        return session_string
 
 
 if __name__ == "__main__":
-    # Clear screen
-    os.system("cls" if os.name == "nt" else "clear")
-
-    logger.info("🔐 TELEGRAM SESSION GENERATOR")
-    logger.info("=" * 30)
-
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("\n\n👋 Generator dihentikan")
-    except Exception:
-        logger.exception("\n❌ Error fatal")
+    get_session()

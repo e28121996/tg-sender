@@ -3,41 +3,46 @@ __pycache__/
 *.py[cod]
 *$py.class
 .Python
-*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
 # Virtual Environment
-.venv/
+.env
+.venv
+env/
+venv/
+ENV/
 
 # IDE
-cursor/
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Code Quality
 .mypy_cache/
-.pytest_cache/
 .ruff_cache/
+.DS_Store
 
 # Project specific
-data/status.json
-*.session
-*.session-journal
-.env
-
-# Replit specific
-.breakpoints
-.config/
-.upm/
-.cache/
-poetry.lock
-
-# OS specific
-.DS_Store
-Thumbs.db
-*.tmp
+logs/
 *.log
+*.session
+status.json
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+tests/
