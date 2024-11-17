@@ -1,7 +1,8 @@
-telethon>=1.32.1
-python-dotenv>=1.0.0Flask>=3.0.0
-requests>=2.31.0
+# Core dependencies
+telethon==1.37.0
+python-dotenv==1.0.1
+Flask==3.0.3
 
 # Development dependencies
-ruff>=0.2.1
-mypy>=1.8.0
+ruff==0.7.1
+mypy==1.13.0
