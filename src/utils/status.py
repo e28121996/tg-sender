@@ -27,8 +27,19 @@ class InvalidURLError(TypeError):
 class InvalidTimestampError(TypeError):
     """Error untuk timestamp yang tidak valid."""
 
-    def __init__(self, timestamp: object) -> None:
-        super().__init__(f"Timestamp tidak valid: {timestamp}")
+    def __init__(self, timestamp: object, *, negative: bool = False) -> None:
+        """Inisialisasi error timestamp.
+
+        Args:
+            timestamp: Nilai timestamp yang invalid
+            negative: True jika error karena timestamp negatif
+        """
+        self.timestamp = timestamp
+        if negative:
+            message = f"Timestamp tidak boleh negatif: {timestamp}"
+        else:
+            message = f"Timestamp tidak valid: {timestamp}"
+        super().__init__(message)
 
 
 class StatusDict(TypedDict):
@@ -101,7 +112,7 @@ class StatusManager:
 
         Raises:
             InvalidURLError: Jika key bukan string
-            InvalidTimestampError: Jika value bukan int/float
+            InvalidTimestampError: Jika value bukan int/float atau negatif
         """
         if not isinstance(key, str):
             raise InvalidURLError(key)
@@ -109,10 +120,16 @@ class StatusManager:
         if not isinstance(value, int | float):
             raise InvalidTimestampError(value)
 
-        return key, float(value)
+        # Validasi timestamp tidak negatif
+        timestamp = float(value)
+        if timestamp < 0:
+            raise InvalidTimestampError(timestamp, negative=True)
+
+        return key, timestamp
 
     def clean_expired_slowmode(self) -> None:
         """Membersihkan slowmode dengan validasi tipe yang lebih ketat."""
+        logger.debug("Mulai pembersihan slowmode...")
         current_time = time.time()
         cleaned_slowmode: dict[str, float] = {}
 
@@ -123,6 +140,8 @@ class StatusManager:
             self.status["slowmode"] = cleaned_slowmode
             self.save()
             return
+
+        initial_count = len(slowmode)
 
         # Proses setiap entry
         for key, value in slowmode.items():
@@ -135,6 +154,11 @@ class StatusManager:
             except TypeError as e:
                 logger.warning(str(e))
                 continue
+
+        # Hitung jumlah yang dibersihkan
+        cleaned_count = initial_count - len(cleaned_slowmode)
+        if cleaned_count > 0:
+            logger.info("Berhasil membersihkan %d slowmode kadaluarsa", cleaned_count)
 
         # Update status jika ada perubahan
         if self.status["slowmode"] != cleaned_slowmode:
