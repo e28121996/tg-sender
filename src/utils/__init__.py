@@ -1,16 +1,13 @@
-"""Utility package untuk fungsi pendukung."""
+"""Package utils untuk fungsi dan class utilitas."""
 
 from .config import get_env
-from .errors import AuthError, ClientError, DisconnectError, TemplateError
 from .logger import get_logger
-from .status import StatusManager
+from .status import InvalidTimestampError, InvalidURLError, StatusManager
 
 __all__ = [
-    "AuthError",
-    "ClientError",
-    "DisconnectError",
+    "InvalidTimestampError",
+    "InvalidURLError",
     "StatusManager",
-    "TemplateError",
     "get_env",
     "get_logger",
 ]

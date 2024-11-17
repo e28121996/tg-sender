@@ -14,18 +14,18 @@ from .sender import MessageSender
 logger = get_logger(__name__)
 
 
-class StructureError(ValueError):
-    """Error untuk struktur folder/file yang tidak valid."""
-
-    def __init__(self, path: str) -> None:
-        super().__init__(f"Required path {path} not found")
-
-
 class TemplateNotFoundError(ValueError):
     """Error ketika tidak ada template pesan."""
 
     def __init__(self) -> None:
         super().__init__("No message templates found")
+
+
+class StructureError(ValueError):
+    """Error untuk struktur folder/file yang tidak valid."""
+
+    def __init__(self, path: str) -> None:
+        super().__init__(f"Required path {path} not found")
 
 
 class BotRunner:

@@ -8,15 +8,6 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 
-class InvalidTypeError(TypeError):
-    """Error untuk tipe data yang tidak valid."""
-
-    def __init__(self, field: str, value: object) -> None:
-        self.field = field
-        self.value = value
-        super().__init__(f"{field} tidak valid: {value}")
-
-
 class InvalidURLError(TypeError):
     """Error untuk URL yang tidak valid."""
 

@@ -6,14 +6,25 @@ from telethon.sessions import StringSession
 from telethon.types import Message
 
 from ..utils.config import get_env
-from ..utils.errors import AuthError, ClientError, DisconnectError
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+class ClientError(Exception):
+    """Base error untuk client Telegram."""
+
+
 class ResponseError(ClientError):
     """Response dari server tidak valid."""
+
+
+class AuthError(ClientError):
+    """Error saat autentikasi."""
+
+
+class DisconnectError(ClientError):
+    """Error saat disconnect dari Telegram."""
 
 
 class TelegramClient:
@@ -26,11 +37,6 @@ class TelegramClient:
         self.session = get_env("TELEGRAM_SESSION")
         self._client: Any = None
         self._connected = False
-
-    def _check_auth(self) -> None:
-        """Memeriksa autentikasi client."""
-        if not self._client or not self._connected:
-            raise AuthError()
 
     def _handle_auth_error(self) -> None:
         """Menangani error autentikasi."""

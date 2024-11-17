@@ -19,7 +19,6 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 
-from ..utils.errors import TemplateError
 from ..utils.logger import get_logger
 from ..utils.status import StatusManager
 
@@ -114,3 +113,10 @@ class MessageSender:
                 error_msg = "UsernameNotOccupiedError"
             logger.error("Error tidak terduga di %s: %s", group_url, error_msg)
             self.status_manager.add_blacklist(group_url, error_msg)
+
+
+class TemplateError(ValueError):
+    """Error untuk template pesan."""
+
+    def __init__(self, message: str = "Template error") -> None:
+        super().__init__(message)

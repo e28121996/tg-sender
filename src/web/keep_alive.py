@@ -1,6 +1,6 @@
 """Modul untuk menjaga bot tetap berjalan dengan web server Flask."""
 
-from threading import Event, Thread
+from threading import Thread
 
 from flask import Flask
 
@@ -11,7 +11,6 @@ class WebServer:
     def __init__(self) -> None:
         """Inisialisasi web server."""
         self.app = Flask(__name__)
-        self.shutdown_event = Event()
         self.server_thread: Thread | None = None
 
         # Setup routes
@@ -35,7 +34,6 @@ class WebServer:
     def shutdown(self) -> None:
         """Menghentikan web server dengan aman."""
         if self.server_thread and self.server_thread.is_alive():
-            self.shutdown_event.set()
             self.server_thread.join(timeout=1)
             self.server_thread = None
 

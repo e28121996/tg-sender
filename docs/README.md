@@ -24,8 +24,7 @@ Bot untuk mengirim pesan otomatis ke grup Telegram.
 │   │   ├── __init__.py 
 │   │   ├── config.py
 │   │   ├── logger.py
-│   │   ├── status.py
-│   │   └── errors.py
+│   │   └── status.py
 │   └── web/
 │       ├── __init__.py
 │       └── keep_alive.py
