@@ -38,13 +38,6 @@ Bot untuk mengirim pesan otomatis ke grup Telegram.
 └── requirements.txt  # Dependencies
 ```
 
-## Quick Start
-1. Copy `.env.example` ke `.env`
-2. Isi kredensial Telegram
-3. Tambahkan grup di `data/groups.txt`
-4. Tambahkan template di `data/messages/`
-5. Jalankan `python main.py`
-
 ## Dokumentasi
 - [Fitur Detail](docs/FEATURES.md)
 - [Alur Kerja](docs/WORKFLOW.md)
