@@ -9,6 +9,7 @@ from typing import NoReturn
 from src.core import BotRunner
 from src.utils.logger import get_logger
 from src.web import keep_alive
+from src.web.keep_alive import shutdown_server
 
 # Konfigurasi logging sekali saja
 logging.basicConfig(
@@ -39,6 +40,9 @@ def handle_shutdown(bot: BotRunner, loop: asyncio.AbstractEventLoop) -> None:
         loop.run_until_complete(
             asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
         )
+
+        # Hentikan web server
+        shutdown_server()
 
         # Hentikan event loop
         loop.stop()
